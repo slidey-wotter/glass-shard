@@ -165,3 +165,5 @@ extern void sl_close_raised_window (sl_display* display, Time time);
 extern void sl_delete_all_windows (sl_display* display, Time time);
 extern void sl_delete_window (sl_display* display, size_t index, Time time);
 extern void sl_delete_raised_window (sl_display* display, Time time);
+extern void sl_window_erase (sl_display* display, size_t index, Time time);
+extern void sl_raised_window_erase (sl_display* display, Time time);

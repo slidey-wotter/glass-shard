@@ -661,14 +661,17 @@ void sl_delete_all_windows (sl_display* display, Time time) {
 }
 
 void sl_delete_window (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) return sl_delete_raised_window(display, time);
+	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) {
+		delete_window_impl(display, sl_window_at(display, index)->x_window, time);
+		sl_raised_window_erase(display, time);
+		return;
+	}
 
 	sl_window* const window = sl_window_at(display, index);
+
 	if (window->started) delete_window_impl(display, window->x_window, time);
 
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > index) --display->raised_window_index;
-
-	sl_vector_erase(display->windows, index);
+	sl_window_erase(display, index, time);
 }
 
 void sl_delete_raised_window (sl_display* display, Time time) {
@@ -676,10 +679,25 @@ void sl_delete_raised_window (sl_display* display, Time time) {
 
 	delete_window_impl(display, sl_raised_window(display)->x_window, time);
 
-	size_t const saved_index = display->raised_window_index;
+	sl_raised_window_erase(display, time);
+}
+
+void sl_window_erase (sl_display* display, size_t index, Time time) {
+	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) return sl_raised_window_erase(display, time);
+
+	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > index) --display->raised_window_index;
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > index) --display->focused_window_index;
+
+	sl_vector_erase(display->windows, index);
+}
+
+void sl_raised_window_erase (sl_display* display, Time time) {
+	size_t const old_raised_window_index = display->raised_window_index;
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == old_raised_window_index) display->focused_window_index = M_invalid_window_index;
 	sl_cycle_windows_down(display, time);
 
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > saved_index) --display->raised_window_index;
+	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > old_raised_window_index) --display->raised_window_index;
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > old_raised_window_index) --display->focused_window_index;
 
-	sl_vector_erase(display->windows, saved_index);
+	sl_vector_erase(display->windows, old_raised_window_index);
 }

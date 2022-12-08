@@ -176,24 +176,7 @@ void sl_destroy_notify (sl_display* display, XEvent* event) {
 	for (size_t i = 0; i < display->windows->size; ++i) {
 		sl_window* const window = sl_window_at(display, i);
 
-		if (window->x_window == event->xdestroywindow.window) {
-			if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) {
-				size_t const saved_index = display->raised_window_index;
-				sl_cycle_windows_down(display, CurrentTime);
-
-				if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > saved_index) --display->raised_window_index;
-
-				sl_vector_erase(display->windows, i);
-
-				return;
-			}
-
-			if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > i) --display->raised_window_index;
-
-			sl_vector_erase(display->windows, i);
-
-			return;
-		}
+		if (window->x_window == event->xdestroywindow.window) return sl_window_erase(display, i, CurrentTime);
 	}
 }
 
