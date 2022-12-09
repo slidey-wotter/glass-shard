@@ -243,27 +243,21 @@ void sl_motion_notify (sl_display* display, XEvent* event) {
 	if (raised_window->fullscreen || raised_window->maximized) return;
 
 	if (parse_mask(event->xmotion.state) == (Button1MotionMask | Mod4Mask)) {
-		raised_window->saved_position_x += event->xmotion.x_root - display->mouse_x;
-		raised_window->saved_position_y += event->xmotion.y_root - display->mouse_y;
-		XMoveWindow(display->x_display, raised_window->x_window, raised_window->saved_position_x, raised_window->saved_position_y);
+		raised_window->saved_dimensions.x += event->xmotion.x_root - display->mouse_x;
+		raised_window->saved_dimensions.y += event->xmotion.y_root - display->mouse_y;
 		display->mouse_x = event->xmotion.x_root;
 		display->mouse_y = event->xmotion.y_root;
 
-		XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = raised_window->x_window, .window = raised_window->x_window, .x = raised_window->saved_position_x, .y = raised_window->saved_position_y, .width = raised_window->saved_width, .height = raised_window->saved_height, .override_redirect = false};
-		XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
-
-		return;
+		return sl_move_window(display, raised_window, raised_window->saved_dimensions.x, raised_window->saved_dimensions.y);
 	}
 
 	if (parse_mask(event->xmotion.state) == (Button1MotionMask | Mod4Mask | ControlMask)) {
-		raised_window->saved_width += event->xmotion.x_root - display->mouse_x;
-		raised_window->saved_height += event->xmotion.y_root - display->mouse_y;
-		XResizeWindow(display->x_display, raised_window->x_window, raised_window->saved_width, raised_window->saved_height);
+		raised_window->saved_dimensions.width += event->xmotion.x_root - display->mouse_x;
+		raised_window->saved_dimensions.height += event->xmotion.y_root - display->mouse_y;
 		display->mouse_x = event->xmotion.x_root;
 		display->mouse_y = event->xmotion.y_root;
 
-		XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = raised_window->x_window, .window = raised_window->x_window, .x = raised_window->saved_position_x, .y = raised_window->saved_position_y, .width = raised_window->saved_width, .height = raised_window->saved_height, .override_redirect = false};
-		XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+		return sl_resize_window(display, raised_window, raised_window->saved_dimensions.width, raised_window->saved_dimensions.height);
 	}
 }
 
@@ -454,28 +448,23 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 	*/
 
 	window_handle_start {
-		if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight) && ((ulong)event->xconfigurerequest.width >= display->width || (ulong)event->xconfigurerequest.height >= display->height)) {
+		if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight) && ((ulong)event->xconfigurerequest.width >= display->dimensions.width || (ulong)event->xconfigurerequest.height >= display->dimensions.height)) {
 			window->fullscreen = true;
-			XWindowChanges window_changes = (XWindowChanges) {.x = 0, .y = 0, .width = display->width, .height = display->height};
-			XConfigureWindow(display->x_display, window->x_window, CWX | CWY | CWWidth | CWHeight, &window_changes);
-			return;
+
+			return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
 		}
 
 		if (window->maximized) {
-			XWindowChanges window_changes = (XWindowChanges) {.x = 0, .y = 0, .width = display->width, .height = display->height};
-			XConfigureWindow(display->x_display, window->x_window, CWX | CWY | CWWidth | CWHeight, &window_changes);
-			return;
+			return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
 		}
 
 		if (event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight)) {
 			window->fullscreen = false;
-			if (event->xconfigurerequest.value_mask & CWX) window->saved_position_x = event->xconfigurerequest.x;
-			if (event->xconfigurerequest.value_mask & CWY) window->saved_position_y = event->xconfigurerequest.y;
-			if (event->xconfigurerequest.value_mask & CWWidth) window->saved_width = event->xconfigurerequest.width;
-			if (event->xconfigurerequest.value_mask & CWHeight) window->saved_height = event->xconfigurerequest.height;
-			XWindowChanges window_changes = (XWindowChanges) {.x = window->saved_position_x, .y = window->saved_position_y, .width = window->saved_width, .height = window->saved_height};
-			XConfigureWindow(display->x_display, window->x_window, event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight), &window_changes);
-			return;
+			if (event->xconfigurerequest.value_mask & CWX) window->saved_dimensions.x = event->xconfigurerequest.x;
+			if (event->xconfigurerequest.value_mask & CWY) window->saved_dimensions.y = event->xconfigurerequest.y;
+			if (event->xconfigurerequest.value_mask & CWWidth) window->saved_dimensions.width = event->xconfigurerequest.width;
+			if (event->xconfigurerequest.value_mask & CWHeight) window->saved_dimensions.height = event->xconfigurerequest.height;
+			return sl_configure_window(display, window, event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight), (XWindowChanges) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height});
 		}
 	}
 	window_handle_end
@@ -536,11 +525,11 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 
 		XGetWindowAttributes(display->x_display, window->x_window, &attributes);
 		if (attributes.x != 0 || attributes.y != 0 || attributes.width != 0 || attributes.height != 0) {
-			if (attributes.x != 0) window->saved_position_x = attributes.x;
-			if (attributes.y != 0) window->saved_position_y = attributes.y;
-			if (attributes.width != 0) window->saved_width = attributes.width;
-			if (attributes.height != 0) window->saved_height = attributes.height;
-			XMoveResizeWindow(display->x_display, window->x_window, window->saved_position_x, window->saved_position_y, window->saved_width, window->saved_height);
+			if (attributes.x != 0) window->saved_dimensions.x = attributes.x;
+			if (attributes.y != 0) window->saved_dimensions.y = attributes.y;
+			if (attributes.width != 0) window->saved_dimensions.width = attributes.width;
+			if (attributes.height != 0) window->saved_dimensions.height = attributes.height;
+			sl_move_and_resize_window(display, window, window->saved_dimensions);
 		}
 	}
 
@@ -743,8 +732,8 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 		} else if (event->xproperty.atom == display->atoms[net_wm_window_type]) {
 			property_log("_NET_WM_WINDOW_TYPE");
 			/*
-			  his SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to allow for extension of the list of types whilst providing
-			  default behavior for Window Managers that do not recognize the extensions.
+			  This SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to allow for extension of the list of types whilst
+			  providing default behavior for Window Managers that do not recognize the extensions.
 			*/
 		} else if (event->xproperty.atom == display->atoms[net_wm_state]) {
 			property_log("_NET_WM_STATE");
@@ -799,10 +788,7 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 			} else if (atom == display->atoms[net_wm_state_fullscreen]) {
 				// _NET_WM_STATE_FULLSCREEN indicates that the window should fill the entire screen and have no window decorations. Additionally the Window Manager is responsible for restoring the original geometry after a switch from fullscreen back to normal window. For example, a presentation program would use this hint.
 				window->fullscreen = true;
-				window->saved_position_x = 0;
-				window->saved_position_y = 0;
-				window->saved_width = display->width;
-				window->saved_height = display->height;
+				window->saved_dimensions = display->dimensions;
 			} else if (atom == display->atoms[net_wm_state_above]) {
 				// _NET_WM_STATE_ABOVE indicates that the window should be on top of most windows (see the section called “Stacking order” for details).
 
@@ -894,39 +880,39 @@ void sl_client_message (sl_display* display, XEvent* event) {
 					{
 						XWindowAttributes attributes;
 						XGetWindowAttributes(display->x_display, window->x_window, &attributes);
-						window->saved_position_x = attributes.x;
-						window->saved_position_y = attributes.y;
-						window->saved_width = attributes.width;
-						window->saved_height = attributes.height;
+						window->saved_dimensions.x = attributes.x;
+						window->saved_dimensions.y = attributes.y;
+						window->saved_dimensions.width = attributes.width;
+						window->saved_dimensions.height = attributes.height;
 					}
-					XMoveResizeWindow(display->x_display, window->x_window, 0, 0, display->width, display->height);
+					sl_move_and_resize_window(display, window, window->saved_dimensions);
 					XRaiseWindow(display->x_display, window->x_window);
 
 					configure_event.type = ConfigureNotify;
 					configure_event.display = display->x_display;
 					configure_event.event = window->x_window;
 					configure_event.window = window->x_window;
-					configure_event.x = 0;
-					configure_event.y = 0;
-					configure_event.width = display->width;
-					configure_event.height = display->height;
+					configure_event.x = display->dimensions.x;
+					configure_event.y = display->dimensions.y;
+					configure_event.width = display->dimensions.width;
+					configure_event.height = display->dimensions.height;
 					configure_event.override_redirect = false;
 					sl_window* const raised_window = sl_raised_window(display);
 					XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 				} else if (window->fullscreen && (event->xclient.data.l[0] == 0 || event->xclient.data.l[0] == 2)) {
 					window->fullscreen = false;
 					XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)&display->atoms[net_wm_state_fullscreen], false);
-					XMoveResizeWindow(display->x_display, window->x_window, window->saved_position_x, window->saved_position_y, window->saved_width, window->saved_height);
+					XMoveResizeWindow(display->x_display, window->x_window, window->saved_dimensions.x, window->saved_dimensions.y, window->saved_dimensions.width, window->saved_dimensions.height);
 
 					sl_window* const raised_window = sl_raised_window(display);
 					configure_event.type = ConfigureNotify;
 					configure_event.display = display->x_display;
 					configure_event.event = raised_window->x_window;
 					configure_event.window = raised_window->x_window;
-					configure_event.x = raised_window->saved_position_x;
-					configure_event.y = raised_window->saved_position_y;
-					configure_event.width = raised_window->saved_width;
-					configure_event.height = raised_window->saved_height;
+					configure_event.x = raised_window->saved_dimensions.x;
+					configure_event.y = raised_window->saved_dimensions.y;
+					configure_event.width = raised_window->saved_dimensions.width;
+					configure_event.height = raised_window->saved_dimensions.height;
 					configure_event.override_redirect = false;
 					XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 				}

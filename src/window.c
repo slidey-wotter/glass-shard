@@ -21,8 +21,9 @@
 typedef struct sl_window_mutable {
 	Window x_window;
 	bool started, mapped, fullscreen, maximized;
-	i16 saved_position_x, saved_position_y;
-	u16 saved_width, saved_height;
+
+	sl_window_dimensions saved_dimensions;
+
 	workspace_type workspace;
 
 	struct sl_window_have_protocols have_protocols;

@@ -32,8 +32,9 @@ typedef struct sl_display_mutable {
 	sl_vector* windows;
 	sl_vector* unmanaged_windows;
 	Atom atoms[atoms_size];
-	size_t raised_window_index, focused_window_index;
-	uint numlockmask, width, height, mouse_x, mouse_y;
+	sl_window_dimensions dimensions;
+	size_t focused_window_index, raised_window_index;
+	uint numlockmask, mouse_x, mouse_y;
 	workspace_type current_workspace, workspaces_size;
 	bool user_input_since_last_workspace_change;
 } sl_display_mutable;
@@ -90,8 +91,7 @@ sl_display* sl_display_create (Display* x_display) {
 
 	display->raised_window_index = M_invalid_window_index;
 	display->focused_window_index = M_invalid_window_index;
-	display->width = XDisplayWidth(display->x_display, 0);
-	display->height = XDisplayHeight(display->x_display, 0);
+	display->dimensions = (sl_window_dimensions) {.x = 0, .y = 0, .width = XDisplayWidth(display->x_display, 0), .height = XDisplayHeight(display->x_display, 0)};
 	display->workspaces_size = 4;
 
 #ifdef D_debug
@@ -550,6 +550,32 @@ void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Tim
 	raise_window_impl(display, unmanaged_window, time);
 }
 
+void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
+	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
+
+	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+}
+
+void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
+	XMoveWindow(display->x_display, window->x_window, x, y);
+
+	send_new_dimensions_to_window(display, window, (sl_window_dimensions) {.x = x, .y = y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height});
+}
+
+void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height) {
+	XResizeWindow(display->x_display, window->x_window, width, height);
+
+	send_new_dimensions_to_window(display, window, (sl_window_dimensions) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = width, .height = height});
+}
+
+void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
+	XMoveResizeWindow(display->x_display, window->x_window, dimensions.x, dimensions.y, dimensions.width, dimensions.height);
+
+	send_new_dimensions_to_window(display, window, dimensions);
+}
+
+void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes) { XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes); }
+
 void sl_maximize_raised_window (sl_display* display) {
 	if (!is_valid_window_index(display->raised_window_index)) return;
 
@@ -560,14 +586,7 @@ void sl_maximize_raised_window (sl_display* display) {
 
 		if (raised_window->fullscreen) return; // do nothing
 
-		XMoveResizeWindow(display->x_display, raised_window->x_window, raised_window->saved_position_x, raised_window->saved_position_y, raised_window->saved_width, raised_window->saved_height);
-
-		XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = raised_window->x_window, .window = raised_window->x_window, .x = raised_window->saved_position_x, .y = raised_window->saved_position_y, .width = raised_window->saved_width, .height = raised_window->saved_height, .override_redirect = false};
-
-		// NOTE: no window decoration support currently
-		XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
-
-		return;
+		return sl_move_and_resize_window(display, raised_window, raised_window->saved_dimensions);
 	}
 
 	raised_window->maximized = true;
@@ -576,20 +595,10 @@ void sl_maximize_raised_window (sl_display* display) {
 	{
 		XWindowAttributes attributes;
 		XGetWindowAttributes(display->x_display, raised_window->x_window, &attributes);
-		raised_window->saved_position_x = attributes.x;
-		raised_window->saved_position_y = attributes.y;
-		raised_window->saved_width = attributes.width;
-		raised_window->saved_height = attributes.height;
+		raised_window->saved_dimensions = (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
 	}
 
-	XMoveResizeWindow(display->x_display, raised_window->x_window, 0, 0, display->width, display->height);
-
-	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = raised_window->x_window, .window = raised_window->x_window, .x = 0, .y = 0, .width = display->width, .height = display->height, .override_redirect = false};
-
-	// NOTE: no window decoration support currently
-	XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
-
-	return;
+	return sl_move_and_resize_window(display, raised_window, display->dimensions);
 }
 
 void sl_expand_raised_window_to_max (sl_display* display) {
@@ -599,18 +608,9 @@ void sl_expand_raised_window_to_max (sl_display* display) {
 
 	if (raised_window->fullscreen) return; // do nothing
 
-	raised_window->saved_position_x = 0;
-	raised_window->saved_position_y = 0;
-	raised_window->saved_width = display->width;
-	raised_window->saved_height = display->height;
-	XMoveResizeWindow(display->x_display, raised_window->x_window, 0, 0, display->width, display->height);
+	raised_window->saved_dimensions = display->dimensions;
 
-	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = raised_window->x_window, .window = raised_window->x_window, .x = 0, .y = 0, .width = display->width, .height = display->height, .override_redirect = false};
-
-	// NOTE: no window decoration support currently
-	XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
-
-	return;
+	return sl_move_and_resize_window(display, raised_window, display->dimensions);
 }
 
 void sl_close_raised_window (sl_display* display, Time time) {

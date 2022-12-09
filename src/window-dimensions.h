@@ -18,23 +18,11 @@
 
 #pragma once
 
-#include <X11/X.h>
+#include "types.h"
 
-#include "window-dimensions.h"
-#include "workspace-type.h"
-
-typedef struct sl_window {
-	Window const x_window;
-	bool started, mapped, fullscreen, maximized;
-
-	sl_window_dimensions saved_dimensions;
-
-	workspace_type workspace;
-
-	struct sl_window_have_protocols {
-		bool take_focus;
-		bool delete_window;
-	} have_protocols;
-} sl_window;
-
-extern void sl_window_swap (sl_window* lhs, sl_window* rhs);
+typedef struct sl_window_dimensions {
+	i16 x;
+	i16 y;
+	u16 width;
+	u16 height;
+} sl_window_dimensions;

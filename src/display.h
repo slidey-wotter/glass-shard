@@ -22,6 +22,7 @@
 
 #include "message.h"
 #include "vector.h"
+#include "window-dimensions.h"
 #include "workspace-type.h"
 
 enum {
@@ -113,8 +114,9 @@ typedef struct sl_display {
 	sl_vector* const windows;
 	sl_vector* const unmanaged_windows;
 	Atom const atoms[atoms_size];
+	sl_window_dimensions const dimensions;
 	size_t focused_window_index, raised_window_index;
-	uint numlockmask, width, height, mouse_x, mouse_y;
+	uint numlockmask, mouse_x, mouse_y;
 	workspace_type current_workspace, workspaces_size;
 	bool user_input_since_last_workspace_change;
 } sl_display;
@@ -157,6 +159,11 @@ extern void sl_focus_raised_window (sl_display* display, Time time);
 extern void sl_swap_window_with_raised_window (sl_display* display, size_t index, Time time);
 
 extern void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Time time);
+
+extern void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y);
+extern void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height);
+extern void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions);
+void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes);
 
 extern void sl_maximize_raised_window (sl_display* display);
 extern void sl_expand_raised_window_to_max (sl_display* display);
