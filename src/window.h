@@ -29,8 +29,8 @@ typedef struct sl_window {
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
-	char name[64];
-	char icon_name[64];
+	char const name[64];
+	char const icon_name[64];
 
 	struct sl_window_have_protocols {
 		bool take_focus;

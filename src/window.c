@@ -27,6 +27,9 @@ typedef struct sl_window_mutable {
 	Window x_window;
 	bool started, mapped, fullscreen, maximized;
 
+	char name[64];
+	char icon_name[64];
+
 	sl_window_dimensions saved_dimensions;
 
 	workspace_type workspace;
@@ -117,7 +120,7 @@ void sl_set_window_name (sl_window* window, sl_display* display) {
 
 	for (size_t i = 0; i < 64 && i < text_proterty.nitems; ++i) {
 		warn_log("hardcoding window->name size");
-		window->name[i] = text_proterty.value[i];
+		((sl_window_mutable*)window)->name[i] = text_proterty.value[i];
 	}
 }
 
@@ -141,7 +144,7 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 
 	for (size_t i = 0; i < 64 && i < text_proterty.nitems; ++i) {
 		warn_log("hardcoding window->icon_name size");
-		window->icon_name[i] = text_proterty.value[i];
+		((sl_window_mutable*)window)->icon_name[i] = text_proterty.value[i];
 	}
 }
 
