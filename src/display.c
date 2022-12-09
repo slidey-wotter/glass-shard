@@ -34,7 +34,10 @@ typedef struct sl_display_mutable {
 	Atom atoms[atoms_size];
 	sl_window_dimensions dimensions;
 	size_t focused_window_index, raised_window_index;
-	uint numlockmask, mouse_x, mouse_y;
+	uint numlockmask;
+
+	struct sl_u32_position mouse;
+
 	workspace_type current_workspace, workspaces_size;
 	bool user_input_since_last_workspace_change;
 } sl_display_mutable;

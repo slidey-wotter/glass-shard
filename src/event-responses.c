@@ -66,8 +66,8 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 		if (parse_mask(event->xbutton.state) == 0 || parse_mask(event->xbutton.state) == (Mod4Mask) || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) sl_focus_raised_window(display, event->xbutton.time);
 
 		if (parse_mask(event->xbutton.state) == Mod4Mask || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) {
-			display->mouse_x = event->xbutton.x_root;
-			display->mouse_y = event->xbutton.y_root;
+			display->mouse.x = event->xbutton.x_root;
+			display->mouse.y = event->xbutton.y_root;
 
 			return;
 		}
@@ -79,8 +79,8 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 		if (parse_mask(event->xbutton.state) == 0 || parse_mask(event->xbutton.state) == (Mod4Mask) || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) sl_swap_window_with_raised_window(display, i, event->xbutton.time);
 
 		if (parse_mask(event->xbutton.state) == Mod4Mask || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) {
-			display->mouse_x = event->xbutton.x_root;
-			display->mouse_y = event->xbutton.y_root;
+			display->mouse.x = event->xbutton.x_root;
+			display->mouse.y = event->xbutton.y_root;
 		}
 	}
 	window_handle_end
@@ -243,19 +243,19 @@ void sl_motion_notify (sl_display* display, XEvent* event) {
 	if (raised_window->fullscreen || raised_window->maximized) return;
 
 	if (parse_mask(event->xmotion.state) == (Button1MotionMask | Mod4Mask)) {
-		raised_window->saved_dimensions.x += event->xmotion.x_root - display->mouse_x;
-		raised_window->saved_dimensions.y += event->xmotion.y_root - display->mouse_y;
-		display->mouse_x = event->xmotion.x_root;
-		display->mouse_y = event->xmotion.y_root;
+		raised_window->saved_dimensions.x += event->xmotion.x_root - display->mouse.x;
+		raised_window->saved_dimensions.y += event->xmotion.y_root - display->mouse.y;
+		display->mouse.x = event->xmotion.x_root;
+		display->mouse.y = event->xmotion.y_root;
 
 		return sl_move_window(display, raised_window, raised_window->saved_dimensions.x, raised_window->saved_dimensions.y);
 	}
 
 	if (parse_mask(event->xmotion.state) == (Button1MotionMask | Mod4Mask | ControlMask)) {
-		raised_window->saved_dimensions.width += event->xmotion.x_root - display->mouse_x;
-		raised_window->saved_dimensions.height += event->xmotion.y_root - display->mouse_y;
-		display->mouse_x = event->xmotion.x_root;
-		display->mouse_y = event->xmotion.y_root;
+		raised_window->saved_dimensions.width += event->xmotion.x_root - display->mouse.x;
+		raised_window->saved_dimensions.height += event->xmotion.y_root - display->mouse.y;
+		display->mouse.x = event->xmotion.x_root;
+		display->mouse.y = event->xmotion.y_root;
 
 		return sl_resize_window(display, raised_window, raised_window->saved_dimensions.width, raised_window->saved_dimensions.height);
 	}

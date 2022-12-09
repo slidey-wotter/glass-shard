@@ -114,7 +114,13 @@ typedef struct sl_display {
 	Atom const atoms[atoms_size];
 	sl_window_dimensions const dimensions;
 	size_t focused_window_index, raised_window_index;
-	uint numlockmask, mouse_x, mouse_y;
+	uint numlockmask;
+
+	struct sl_u32_position {
+		u32 x;
+		u32 y;
+	} mouse;
+
 	workspace_type current_workspace, workspaces_size;
 	bool user_input_since_last_workspace_change;
 } sl_display;
