@@ -315,7 +315,8 @@ void sl_create_notify (sl_display* display, XEvent* event) {
 
 	if (event->xcreatewindow.window == display->root) return; // do nothing
 
-	window_handle_start window_handle_end
+	window_handle_start {}
+	window_handle_end
 
 	sl_vector_push(display->windows, &(sl_window) {.x_window = event->xcreatewindow.window});
 }
@@ -472,27 +473,6 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
 
-static void get_window_protocols (sl_display* display, sl_window* window) {
-	Atom* protocols = NULL;
-	int n = 0;
-
-	if (!XGetWMProtocols(display->x_display, window->x_window, &protocols, &n)) return;
-
-	for (size_t i = 0; i <= (size_t)n; ++i) {
-		if (protocols[i] == display->atoms[wm_take_focus]) {
-			window->have_protocols.take_focus = true;
-			continue;
-		}
-
-		if (protocols[i] == display->atoms[wm_take_focus]) {
-			window->have_protocols.delete_window = true;
-			continue;
-		}
-	}
-
-	XFree(protocols);
-}
-
 static void map_unstarted_window (sl_display* display, size_t index) {
 	sl_window* const window = sl_window_at(display, index);
 
@@ -595,135 +575,61 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 
 	  The X server can report PropertyNotify events to clients wanting information about
 	  property changes for a specified window.
-	*/
 
-	if (event->xproperty.state == PropertyDelete) {
-		property_log("delete");
-		return;
-	}
+	  To receive PropertyNotify events, set the PropertyChangeMask bit in the event-
+	  mask attribute of the window.
+
+	  The structure for this event type contains:
+
+	  typedef struct {
+	  int           type;       PropertyNotify
+	  unsigned long serial;     # of last request processed by server
+	  Bool          send_event; true if this came from a SendEvent request
+	  Display       *display;   Display the event was read from
+	  Window        window;
+	  Atom          atom;
+	  Time          time;
+	  int           state;      PropertyNewValue or PropertyDelete
+	  } XPropertyEvent;
+
+	  The window member is set to the window whose associated property was changed.
+	  The atom member is set to the property's atom and indicates which property was
+	  changed or desired. The time member is set to the server time when the property
+	  was changed. The state member is set to indicate whether the property was changed
+	  to a new value or deleted and can be PropertyNewValue or PropertyDelete. The
+	  state member is set to PropertyNewValue when a property of the window is changed
+	  using XChangeProperty or XRotateWindowProperties (even when adding zero-
+	  length data using XChangeProperty) and when replacing all or part of a property
+	  with identical data using XChangeProperty or XRotateWindowProperties. The state
+	  member is set to PropertyDelete when a property of the window is deleted using
+	  XDeleteProperty or, if the delete argument is True, XGetWindowProperty.
+	*/
 
 	if (event->xproperty.window == display->root) return; // do nothing
 
+	if (event->xproperty.state == PropertyDelete) {
+		property_log("PropertyDelete");
+		return;
+	}
+
 	window_handle_start {
-		// start of icccm spec:
-		if (event->xproperty.atom == XA_WM_NAME) {
-			property_log("WM_NAME");
-			/*
-			  The WM_NAME property is an uninterpreted string that the client wants the window manager to display in association with the window (for example, in a window headline bar).]
-			*/
-		} else if (event->xproperty.atom == XA_WM_ICON_NAME) {
-			property_log("WM_ICON_NAME");
-			/* The WM_ICON_NAME property is an uninterpreted string that the client wants to be displayed in association with the window when it is iconified (for example, in an icon label). In other respects, including the type, it is similar to WM_NAME. For obvious geometric reasons, fewer characters will normally be visible in WM_ICON_NAME than WM_NAME.
-			 */
-		} else if (event->xproperty.atom == XA_WM_NORMAL_HINTS) {
-			property_log("WM_NORMAL_HINTS");
-			XSizeHints hints;
-			long supplied_return = 0;
-			warn_log("ignoring the return value of a function that returns Status");
-			XGetWMNormalHints(display->x_display, window->x_window, &hints, &supplied_return);
+		if (event->xproperty.atom == XA_WM_NAME) return sl_set_window_name(window, display);
 
-			/*
-			  The WM_SIZE_HINTS.flags bit definitions are as follows:
+		if (event->xproperty.atom == XA_WM_ICON_NAME) return sl_set_window_icon_name(window, display);
 
-			    USPosition   User-specified x, y
-			    USSize       User-specified width, height
-			    PPosition    Program-specified position
-			    PSize        Program-specified size
-			    PMinSize     Program-specified minimum size
-			    PMaxSize     Program-specified maximum size
-			    PResizeInc   Program-specified resize increments
-			    PAspect      Program-specified min and max aspect ratios
-			    PBaseSize    Program-specified base size
-			    PWinGravity  Program-specified window gravity
-			*/
+		if (event->xproperty.atom == XA_WM_NORMAL_HINTS) return sl_set_window_normal_hints(window, display);
 
-			if (hints.flags & USPosition) {
-				warn_log("TODO: USPosition");
-			}
-			if (hints.flags & USSize) {
-				warn_log("TODO: USSize");
-			}
-			if (hints.flags & PPosition) {
-				warn_log("ignoring obsolete functionality");
-			}
-			if (hints.flags & PSize) {
-				warn_log("ignoring obsolete functionality");
-			}
-			if (hints.flags & PMinSize) {
-				warn_log("TODO: PMinSize");
-			}
-			if (hints.flags & PMaxSize) {
-				warn_log("TODO: PMaxSize");
-			}
-			if (hints.flags & PResizeInc) {
-				warn_log("TODO: PResizeInc");
-			}
-			if (hints.flags & PAspect) {
-				warn_log("TODO: PAspect");
-			}
-			if (hints.flags & PBaseSize) {
-				warn_log("TODO: PBaseSize");
-			}
-			if (hints.flags & PWinGravity) {
-				warn_log("TODO: PWinGravity");
-			}
+		if (event->xproperty.atom == XA_WM_HINTS) return sl_set_window_hints(window, display);
 
-			// Extended Window Manager Hints:
-			/* Windows can indicate that they are non-resizable by setting minheight = maxheight and minwidth = maxwidth in the ICCCM WM_NORMAL_HINTS property. The Window Manager MAY decorate such windows differently.
-			 */
-		} else if (event->xproperty.atom == XA_WM_HINTS) {
-			property_log("WM_HINTS");
-			/*
-			  The WM_HINTS.flags bit definitions are as follows:
-			    InputHint         input
-			    StateHint         initial_state
-			    IconPixmapHint    icon_pixmap
-			    IconWindowHint    icon_window
-			    IconPositionHint  icon_x & icon_y
-			    IconMaskHint      icon_mask
-			    WindowGroupHint  	window_group
-			    MessageHint       (this bit is obsolete)
-			    UrgencyHint       urgency
-			*/
+		if (event->xproperty.atom == XA_WM_CLASS) return sl_set_window_class(window, display);
 
-			// Extended Window Manager Hints:
-			/* Windows expecting immediate user action should indicate this using the urgency bit in the WM_HINTS.flags property, as defined in the ICCCM. */
+		if (event->xproperty.atom == XA_WM_TRANSIENT_FOR) return sl_set_window_transient_for(window, display);
 
-		} else if (event->xproperty.atom == XA_WM_CLASS) {
-			property_log("WM_CLASS");
-			/*
-			  The WM_CLASS property (of type STRING without control characters) contains two consecutive null-terminated strings. These specify the Instance and Class names to be used by both the client and the window manager for looking up resources for the application or as identifying information. This property must be present when the window leaves the Withdrawn state and may be changed only while the window is in the Withdrawn state. Window managers may examine the property only when they start
-			  up and when the window leaves the Withdrawn state, but there should be no need for a client to change its state dynamically.
-			*/
-		} else if (event->xproperty.atom == XA_WM_TRANSIENT_FOR) {
-			property_log("WM_TRANSIENT_FOR");
-			/*
-			  The WM_TRANSIENT_FOR property (of type WINDOW) contains the ID of another top-level window. The implication is that this window is a pop-up on behalf of the named window, and window managers may decide not to decorate transient windows or may treat them differently in other ways. In particular, window managers should present newly mapped WM_TRANSIENT_FOR windows without requiring any user interaction, even if mapping top-level windows normally does require interaction. Dialogue boxes,
-			  for example, are an example of windows that should have WM_TRANSIENT_FOR set.
-			*/
-		} else if (event->xproperty.atom == display->atoms[wm_protocols]) {
-			property_log("WM_PROTOCOLS");
-			/*
-			  Inter-Client Communication Conventions Manual: Chapter 4. Client-to-Window-Manager Communication: Client's Actions: Client Properties:
+		if (event->xproperty.atom == display->atoms[wm_protocols]) return sl_set_window_protocols(window, display);
 
-			  WM_PROTOCOLS Property:
+		if (event->xproperty.atom == display->atoms[wm_colormap_windows]) return sl_set_window_colormap_windows(window, display);
 
-			  The WM_PROTOCOLS property (of type ATOM) is a list of atoms. Each atom
-			  identifies a communication protocol between the client and the window manager in
-			  which the client is willing to participate. Atoms can identify both standard protocols
-			  and private protocols specific to individual window managers.
-			*/
-
-			return get_window_protocols(display, window);
-		} else if (event->xproperty.atom == display->atoms[wm_colormap_windows]) {
-			property_log("WM_COLORMAP_WINDOWS");
-			/* The WM_COLORMAP_WINDOWS property (of type WINDOW) on a top-level window is a list of the IDs of windows that may need colormaps installed that differ from the colormap of the top-level window. The window manager will watch this list of windows for changes in their colormap attributes. The top-level window is always (implicitly or explicitly) on the watch list. For the details of this mechanism, see Colormaps */
-
-			// NOTE: WM_PROTOCOLS and WM_COLORMAP_WINDOWS are not predefined for _some_ reason
-		} else if (event->xproperty.atom == XA_WM_CLIENT_MACHINE) {
-			property_log("WM_CLIENT_MACHINE");
-			/* The client should set the WM_CLIENT_MACHINE property (of one of the TEXT types) to a string that forms the name of the machine running the client as seen from the machine running the server. */
-		}
+		if (event->xproperty.atom == XA_WM_CLIENT_MACHINE) return sl_set_window_client_machine(window, display);
 
 		// start of extended window manager hints:
 

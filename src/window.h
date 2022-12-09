@@ -26,15 +26,28 @@
 typedef struct sl_window {
 	Window const x_window;
 	bool started, mapped, fullscreen, maximized;
-
 	sl_window_dimensions saved_dimensions;
-
 	workspace_type workspace;
+
+	char name[64];
+	char icon_name[64];
 
 	struct sl_window_have_protocols {
 		bool take_focus;
 		bool delete_window;
-	} have_protocols;
+	} const have_protocols;
 } sl_window;
 
 extern void sl_window_swap (sl_window* lhs, sl_window* rhs);
+
+typedef struct sl_display sl_display;
+
+extern void sl_set_window_name (sl_window* window, sl_display* display);
+extern void sl_set_window_icon_name (sl_window* window, sl_display* display);
+extern void sl_set_window_normal_hints (sl_window* window, sl_display* display);
+extern void sl_set_window_hints (sl_window* window, sl_display* display);
+extern void sl_set_window_class (sl_window* window, sl_display* display);
+extern void sl_set_window_transient_for (sl_window* window, sl_display* display);
+extern void sl_set_window_protocols (sl_window* window, sl_display* display);
+extern void sl_set_window_colormap_windows (sl_window* window, sl_display* display);
+extern void sl_set_window_client_machine (sl_window* window, sl_display* display);
