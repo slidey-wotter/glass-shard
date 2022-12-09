@@ -91,7 +91,7 @@ int main () {
 	sl_notify_supported_atom(display, net_wm_opaque_region);
 	sl_notify_supported_atom(display, net_wm_bypass_compositor);
 
-	// note: this should be where we chreate threads for every display
+	warn_log("todo: this should be where we create threads for every display and handle each individually");
 	for (XEvent event; !XNextEvent(display->x_display, &event);) {
 		switch (event.type) {
 			// ButtonPressMask
@@ -148,7 +148,7 @@ int main () {
 
 		default:
 			warn_log("default case reached at the event loop switch");
-			// todo: log the display number as well
+			warn_log("todo: log the display number as well");
 			assert_not_reached();
 			break;
 		}
