@@ -22,7 +22,10 @@ typedef struct sl_window_mutable {
 	Window x_window;
 	bool started, mapped, fullscreen, maximized;
 	i16 saved_position_x, saved_position_y;
-	u16 saved_width, saved_height, workspace;
+	u16 saved_width, saved_height;
+	workspace_type workspace;
+
+	struct sl_window_have_protocols have_protocols;
 } sl_window_mutable;
 
 void sl_window_swap (sl_window* lhs, sl_window* rhs) {

@@ -447,32 +447,33 @@ void sl_unmap_windows_for_current_workspace_except_raised_window (sl_display* di
 	}
 }
 
-static void focus_window_impl (sl_display* display, Window x_window, Time time) {
-	Atom* protocols = NULL;
-	int n = 0;
-
-	if (XGetWMProtocols(display->x_display, x_window, &protocols, &n)) {
-		for (uint i = 0; i <= (uint)n; ++i) {
-			if (protocols[i] == display->atoms[wm_take_focus]) {
-				if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
-
-				XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .send_event = true, .display = display->x_display, .window = x_window, .message_type = display->atoms[wm_protocols], .format = 32, .data.l[0] = display->atoms[wm_take_focus], .data.l[1] = time};
-				XSendEvent(display->x_display, x_window, false, 0, (XEvent*)&event);
-				XFree(protocols);
-				return;
-			}
-		}
-
-		XFree(protocols);
-		XSetInputFocus(display->x_display, x_window, RevertToPointerRoot, time);
-
+static void focus_window_impl (sl_display* display, sl_window* window, Time time) {
+	if (!window->have_protocols.take_focus) {
+		XSetInputFocus(display->x_display, window->x_window, RevertToPointerRoot, time);
 		return;
 	}
 
-	XSetInputFocus(display->x_display, x_window, RevertToPointerRoot, time);
+	warn_log("todo: serial");
+	if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
+
+	XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .send_event = true, .display = display->x_display, .window = window->x_window, .message_type = display->atoms[wm_protocols], .format = 32, .data.l[0] = display->atoms[wm_take_focus], .data.l[1] = time};
+
+	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
 }
 
-static void raise_window_impl (sl_display* display, Window x_window, M_maybe_unused Time time) { XRaiseWindow(display->x_display, x_window); }
+static void delete_window_impl (sl_display* display, sl_window* window, Time time) {
+	if (!window->have_protocols.delete_window) {
+		XDestroyWindow(display->x_display, window->x_window);
+		return;
+	}
+
+	warn_log("todo: serial");
+	if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
+
+	XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .send_event = true, .display = display->x_display, .window = window->x_window, .message_type = display->atoms[wm_protocols], .format = 32, .data.l[0] = display->atoms[wm_delete_window], .data.l[1] = time};
+
+	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
+}
 
 void sl_focus_window (sl_display* display, size_t index, Time time) {
 	if (is_valid_window_index(display->focused_window_index) && index == display->focused_window_index) return;
@@ -488,23 +489,25 @@ void sl_focus_window (sl_display* display, size_t index, Time time) {
 	display->focused_window_index = index;
 
 	sl_window* const focused_window = sl_focused_window(display);
-	focus_window_impl(display, focused_window->x_window, time);
+	focus_window_impl(display, focused_window, time);
 
 	for (size_t i = 0; i < 4; ++i)
 		XUngrabButton(display->x_display, Button1, modifiers[i], focused_window->x_window);
 }
+
+static void raise_window_impl (sl_display* display, sl_window* window, M_maybe_unused Time time) { XRaiseWindow(display->x_display, window->x_window); }
 
 void sl_raise_window (sl_display* display, size_t index, Time time) {
 	if (is_valid_window_index(display->raised_window_index) && index == display->raised_window_index) return;
 
 	display->raised_window_index = index;
 	sl_window* const raised_window = sl_raised_window(display);
-	raise_window_impl(display, raised_window->x_window, time);
+	raise_window_impl(display, raised_window, time);
 
 	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) {
 		sl_window* const window = (sl_window*)display->unmanaged_windows->data + i;
 
-		XRaiseWindow(display->x_display, window->x_window);
+		raise_window_impl(display, window, time);
 	}
 }
 
@@ -543,8 +546,8 @@ void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Tim
 
 	sl_window* const unmanaged_window = sl_unmanaged_window_at(display, index);
 
-	focus_window_impl(display, unmanaged_window->x_window, time);
-	raise_window_impl(display, unmanaged_window->x_window, time);
+	focus_window_impl(display, unmanaged_window, time);
+	raise_window_impl(display, unmanaged_window, time);
 }
 
 void sl_maximize_raised_window (sl_display* display) {
@@ -616,45 +619,20 @@ void sl_close_raised_window (sl_display* display, Time time) {
 	sl_delete_raised_window(display, time);
 }
 
-static void delete_window_impl (sl_display* display, Window x_window, Time time) {
-	Atom* protocols = NULL;
-	int n = 0;
-
-	if (XGetWMProtocols(display->x_display, x_window, &protocols, &n)) {
-		for (uint i = 0; i <= (uint)n; ++i) {
-			if (protocols[i] == display->atoms[wm_delete_window]) {
-				if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
-
-				XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .send_event = true, .display = display->x_display, .window = x_window, .message_type = display->atoms[wm_protocols], .format = 32, .data.l[0] = display->atoms[wm_delete_window], .data.l[1] = time};
-				XSendEvent(display->x_display, x_window, false, 0, (XEvent*)&event);
-				XFree(protocols);
-
-				return;
-			}
-		}
-		XFree(protocols);
-		XKillClient(display->x_display, x_window);
-
-		return;
-	}
-
-	XKillClient(display->x_display, x_window);
-}
-
 void sl_delete_all_windows (sl_display* display, Time time) {
 	display->focused_window_index = M_invalid_window_index;
 	display->raised_window_index = M_invalid_window_index;
 
 	for (size_t i = 0; i < display->windows->size; ++i) {
 		sl_window* const window = sl_window_at(display, i);
-		if (window->started) delete_window_impl(display, window->x_window, time);
+		if (window->started) delete_window_impl(display, window, time);
 	}
 
 	sl_vector_resize(display->windows, 0);
 
 	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) {
 		sl_window* const unmanaged_window = sl_unmanaged_window_at(display, i);
-		if (unmanaged_window->started) delete_window_impl(display, unmanaged_window->x_window, time);
+		if (unmanaged_window->started) delete_window_impl(display, unmanaged_window, time);
 	}
 
 	sl_vector_resize(display->unmanaged_windows, 0);
@@ -662,14 +640,14 @@ void sl_delete_all_windows (sl_display* display, Time time) {
 
 void sl_delete_window (sl_display* display, size_t index, Time time) {
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) {
-		delete_window_impl(display, sl_window_at(display, index)->x_window, time);
+		delete_window_impl(display, sl_window_at(display, index), time);
 		sl_raised_window_erase(display, time);
 		return;
 	}
 
 	sl_window* const window = sl_window_at(display, index);
 
-	if (window->started) delete_window_impl(display, window->x_window, time);
+	if (window->started) delete_window_impl(display, window, time);
 
 	sl_window_erase(display, index, time);
 }
@@ -677,7 +655,7 @@ void sl_delete_window (sl_display* display, size_t index, Time time) {
 void sl_delete_raised_window (sl_display* display, Time time) {
 	if (!is_valid_window_index(display->raised_window_index)) return;
 
-	delete_window_impl(display, sl_raised_window(display)->x_window, time);
+	delete_window_impl(display, sl_raised_window(display), time);
 
 	sl_raised_window_erase(display, time);
 }

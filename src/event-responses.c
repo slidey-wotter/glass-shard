@@ -483,6 +483,27 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
 
+static void get_window_protocols (sl_display* display, sl_window* window) {
+	Atom* protocols = NULL;
+	int n = 0;
+
+	if (!XGetWMProtocols(display->x_display, window->x_window, &protocols, &n)) return;
+
+	for (size_t i = 0; i <= (size_t)n; ++i) {
+		if (protocols[i] == display->atoms[wm_take_focus]) {
+			window->have_protocols.take_focus = true;
+			continue;
+		}
+
+		if (protocols[i] == display->atoms[wm_take_focus]) {
+			window->have_protocols.delete_window = true;
+			continue;
+		}
+	}
+
+	XFree(protocols);
+}
+
 static void map_unstarted_window (sl_display* display, size_t index) {
 	sl_window* const window = sl_window_at(display, index);
 
@@ -531,6 +552,8 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 		XGrabButton(display->x_display, Button1, Mod4Mask | modifiers[i], window->x_window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None);
 		XGrabButton(display->x_display, Button1, Mod4Mask | ControlMask | modifiers[i], window->x_window, false, ButtonPressMask | PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None);
 	}
+
+	get_window_protocols(display, window);
 
 	sl_focus_and_raise_window(display, index, CurrentTime);
 }
