@@ -22,7 +22,7 @@
 
 #include "message.h"
 #include "vector.h"
-#include "workspace_type.h"
+#include "workspace-type.h"
 
 enum {
 	wm_protocols,

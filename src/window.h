@@ -20,7 +20,7 @@
 
 #include <X11/X.h>
 
-#include "workspace_type.h"
+#include "workspace-type.h"
 
 typedef struct sl_window {
 	Window const x_window;
