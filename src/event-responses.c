@@ -39,6 +39,26 @@
 #define parse_mask(m)      (m & ~(display->numlockmask | LockMask))
 #define parse_mask_long(m) (m & ~(display->numlockmask | LockMask) & (ShiftMask | ControlMask | Mod1Mask | Mod2Mask | Mod3Mask | Mod4Mask | Mod5Mask))
 
+#define window_handle_start \
+	for (size_t i = 0; i < display->windows->size; ++i) { \
+		sl_window* const window = sl_window_at(display, i); \
+\
+		if (window->x_window == event->xany.window) {
+#define window_handle_end \
+	return; \
+	} \
+	}
+
+#define unmanaged_window_handle_start \
+	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) { \
+		sl_window* const unmanaged_windows = sl_window_at(display, i); \
+\
+		if (unmanaged_windows->x_window == event->xany.window) {
+#define unmanaged_window_handle_end \
+	return; \
+	} \
+	}
+
 static void button_press_or_release (sl_display* display, XEvent* event) {
 	display->user_input_since_last_workspace_change = true;
 
@@ -53,20 +73,17 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 		}
 	}
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
+	window_handle_start {
+		if (!window->mapped || window->workspace != display->current_workspace) return;
 
-		if (window->x_window == event->xbutton.window) {
-			if (!window->mapped || window->workspace != display->current_workspace) return;
+		if (parse_mask(event->xbutton.state) == 0 || parse_mask(event->xbutton.state) == (Mod4Mask) || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) sl_swap_window_with_raised_window(display, i, event->xbutton.time);
 
-			if (parse_mask(event->xbutton.state) == 0 || parse_mask(event->xbutton.state) == (Mod4Mask) || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) sl_swap_window_with_raised_window(display, i, event->xbutton.time);
-
-			if (parse_mask(event->xbutton.state) == Mod4Mask || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) {
-				display->mouse_x = event->xbutton.x_root;
-				display->mouse_y = event->xbutton.y_root;
-			}
+		if (parse_mask(event->xbutton.state) == Mod4Mask || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) {
+			display->mouse_x = event->xbutton.x_root;
+			display->mouse_y = event->xbutton.y_root;
 		}
 	}
+	window_handle_end
 }
 
 void sl_button_press (sl_display* display, XEvent* event) {
@@ -159,12 +176,10 @@ void sl_enter_notify (sl_display* display, XEvent* event) {
 
 	if (event->xcrossing.mode != NotifyNormal) return;
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->x_window == event->xcrossing.window)
-			if (window->mapped && window->workspace == display->current_workspace) return sl_focus_window(display, i, CurrentTime);
+	window_handle_start {
+		if (window->mapped && window->workspace == display->current_workspace) sl_focus_window(display, i, CurrentTime);
 	}
+	window_handle_end
 }
 
 void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
@@ -306,11 +321,7 @@ void sl_create_notify (sl_display* display, XEvent* event) {
 
 	if (event->xcreatewindow.window == display->root) return; // do nothing
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->x_window == event->xcreatewindow.window) return;
-	}
+	window_handle_start window_handle_end
 
 	sl_vector_push(display->windows, &(sl_window) {.x_window = event->xcreatewindow.window});
 }
@@ -326,11 +337,10 @@ void sl_destroy_notify (sl_display* display, XEvent* event) {
 	  application destroys a window by calling XDestroyWindow or XDestroySubwindows.
 	*/
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->x_window == event->xdestroywindow.window) return sl_window_erase(display, i, CurrentTime);
+	window_handle_start {
+		if (window->x_window == event->xdestroywindow.window) sl_window_erase(display, i, CurrentTime);
 	}
+	window_handle_end
 }
 
 void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
@@ -384,16 +394,13 @@ void sl_unmap_notify (sl_display* display, XEvent* event) {
 	  client application changes the window's state from mapped to unmapped.
 	*/
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
+	window_handle_start {
+		window->mapped = false;
 
-		if (window->x_window == event->xunmap.window) {
-			window->mapped = false;
-
-			if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == i) display->focused_window_index = M_invalid_window_index;
-			if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) return sl_cycle_windows_down(display, CurrentTime);
-		}
+		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == i) display->focused_window_index = M_invalid_window_index;
+		if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) return sl_cycle_windows_down(display, CurrentTime);
 	}
+	window_handle_end
 }
 
 void sl_circulate_request (sl_display* display, XEvent* event) {
@@ -411,30 +418,23 @@ void sl_circulate_request (sl_display* display, XEvent* event) {
 	  XCirculateSubwindowsDown.
 	*/
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
+	window_handle_start {
+		if (!window->mapped || window->workspace != display->current_workspace) return;
 
-		if (window->x_window == event->xcirculaterequest.window) {
-			if (!window->mapped || window->workspace != display->current_workspace) return;
-
-			if (event->xcirculaterequest.place == PlaceOnTop) {
-				sl_focus_and_raise_window(display, i, CurrentTime);
-
-				return;
-			}
-
-			warn_log("implement PlaceOnBottom"); // TODO
+		if (event->xcirculaterequest.place == PlaceOnTop) {
+			sl_focus_and_raise_window(display, i, CurrentTime);
 
 			return;
 		}
-	}
 
-	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) {
-		sl_window* const unmanaged_window = sl_unmanaged_window_at(display, i);
-
-		if (unmanaged_window->x_window == event->xcirculaterequest.window)
-			if (event->xcirculaterequest.place == PlaceOnTop) return sl_focus_and_raise_unmanaged_window(display, i, CurrentTime);
+		warn_log("todo: implement PlaceOnBottom");
 	}
+	window_handle_end
+
+	unmanaged_window_handle_start {
+		if (event->xcirculaterequest.place == PlaceOnTop) return sl_focus_and_raise_unmanaged_window(display, i, CurrentTime);
+	}
+	unmanaged_window_handle_end
 }
 
 void sl_configure_request (sl_display* display, XEvent* event) {
@@ -453,35 +453,32 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 	  XRestackWindows, or XSetWindowBorderWidth.
 	*/
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
+	window_handle_start {
+		if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight) && ((ulong)event->xconfigurerequest.width >= display->width || (ulong)event->xconfigurerequest.height >= display->height)) {
+			window->fullscreen = true;
+			XWindowChanges window_changes = (XWindowChanges) {.x = 0, .y = 0, .width = display->width, .height = display->height};
+			XConfigureWindow(display->x_display, window->x_window, CWX | CWY | CWWidth | CWHeight, &window_changes);
+			return;
+		}
 
-		if (window->x_window == event->xconfigurerequest.window) {
-			if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight) && ((ulong)event->xconfigurerequest.width >= display->width || (ulong)event->xconfigurerequest.height >= display->height)) {
-				window->fullscreen = true;
-				XWindowChanges window_changes = (XWindowChanges) {.x = 0, .y = 0, .width = display->width, .height = display->height};
-				XConfigureWindow(display->x_display, window->x_window, CWX | CWY | CWWidth | CWHeight, &window_changes);
-				return;
-			}
+		if (window->maximized) {
+			XWindowChanges window_changes = (XWindowChanges) {.x = 0, .y = 0, .width = display->width, .height = display->height};
+			XConfigureWindow(display->x_display, window->x_window, CWX | CWY | CWWidth | CWHeight, &window_changes);
+			return;
+		}
 
-			if (window->maximized) {
-				XWindowChanges window_changes = (XWindowChanges) {.x = 0, .y = 0, .width = display->width, .height = display->height};
-				XConfigureWindow(display->x_display, window->x_window, CWX | CWY | CWWidth | CWHeight, &window_changes);
-				return;
-			}
-
-			if (event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight)) {
-				window->fullscreen = false;
-				if (event->xconfigurerequest.value_mask & CWX) window->saved_position_x = event->xconfigurerequest.x;
-				if (event->xconfigurerequest.value_mask & CWY) window->saved_position_y = event->xconfigurerequest.y;
-				if (event->xconfigurerequest.value_mask & CWWidth) window->saved_width = event->xconfigurerequest.width;
-				if (event->xconfigurerequest.value_mask & CWHeight) window->saved_height = event->xconfigurerequest.height;
-				XWindowChanges window_changes = (XWindowChanges) {.x = window->saved_position_x, .y = window->saved_position_y, .width = window->saved_width, .height = window->saved_height};
-				XConfigureWindow(display->x_display, window->x_window, event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight), &window_changes);
-				return;
-			}
+		if (event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight)) {
+			window->fullscreen = false;
+			if (event->xconfigurerequest.value_mask & CWX) window->saved_position_x = event->xconfigurerequest.x;
+			if (event->xconfigurerequest.value_mask & CWY) window->saved_position_y = event->xconfigurerequest.y;
+			if (event->xconfigurerequest.value_mask & CWWidth) window->saved_width = event->xconfigurerequest.width;
+			if (event->xconfigurerequest.value_mask & CWHeight) window->saved_height = event->xconfigurerequest.height;
+			XWindowChanges window_changes = (XWindowChanges) {.x = window->saved_position_x, .y = window->saved_position_y, .width = window->saved_width, .height = window->saved_height};
+			XConfigureWindow(display->x_display, window->x_window, event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight), &window_changes);
+			return;
 		}
 	}
+	window_handle_end
 }
 
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
@@ -552,16 +549,13 @@ void sl_map_request (sl_display* display, XEvent* event) {
 	  calling XMapWindow, XMapRaised, or XMapSubwindows.
 	*/
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->x_window == event->xmaprequest.window) {
-			if (window->started)
-				return map_started_window(display, i);
-			else
-				return map_unstarted_window(display, i);
-		}
+	window_handle_start {
+		if (window->started)
+			return map_started_window(display, i);
+		else
+			return map_unstarted_window(display, i);
 	}
+	window_handle_end
 }
 
 void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
@@ -600,269 +594,259 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 
 	if (event->xproperty.window == display->root) return; // do nothing
 
-	sl_window* window = NULL;
+	window_handle_start {
+		// start of icccm spec:
+		if (event->xproperty.atom == XA_WM_NAME) {
+			property_log("WM_NAME");
+			/*
+			  The WM_NAME property is an uninterpreted string that the client wants the window manager to display in association with the window (for example, in a window headline bar).]
+			*/
+		} else if (event->xproperty.atom == XA_WM_ICON_NAME) {
+			property_log("WM_ICON_NAME");
+			/* The WM_ICON_NAME property is an uninterpreted string that the client wants to be displayed in association with the window when it is iconified (for example, in an icon label). In other respects, including the type, it is similar to WM_NAME. For obvious geometric reasons, fewer characters will normally be visible in WM_ICON_NAME than WM_NAME.
+			 */
+		} else if (event->xproperty.atom == XA_WM_NORMAL_HINTS) {
+			property_log("WM_NORMAL_HINTS");
+			XSizeHints hints;
+			long supplied_return = 0;
+			warn_log("ignoring the return value of a function that returns Status");
+			XGetWMNormalHints(display->x_display, window->x_window, &hints, &supplied_return);
 
-	for (size_t i = 0;; ++i) {
-		sl_window* const test_window = sl_window_at(display, i);
+			/*
+			  The WM_SIZE_HINTS.flags bit definitions are as follows:
 
-		if (test_window->x_window == event->xproperty.window) {
-			window = test_window;
-			break;
+			    USPosition   User-specified x, y
+			    USSize       User-specified width, height
+			    PPosition    Program-specified position
+			    PSize        Program-specified size
+			    PMinSize     Program-specified minimum size
+			    PMaxSize     Program-specified maximum size
+			    PResizeInc   Program-specified resize increments
+			    PAspect      Program-specified min and max aspect ratios
+			    PBaseSize    Program-specified base size
+			    PWinGravity  Program-specified window gravity
+			*/
+
+			if (hints.flags & USPosition) {
+				warn_log("TODO: USPosition");
+			}
+			if (hints.flags & USSize) {
+				warn_log("TODO: USSize");
+			}
+			if (hints.flags & PPosition) {
+				warn_log("ignoring obsolete functionality");
+			}
+			if (hints.flags & PSize) {
+				warn_log("ignoring obsolete functionality");
+			}
+			if (hints.flags & PMinSize) {
+				warn_log("TODO: PMinSize");
+			}
+			if (hints.flags & PMaxSize) {
+				warn_log("TODO: PMaxSize");
+			}
+			if (hints.flags & PResizeInc) {
+				warn_log("TODO: PResizeInc");
+			}
+			if (hints.flags & PAspect) {
+				warn_log("TODO: PAspect");
+			}
+			if (hints.flags & PBaseSize) {
+				warn_log("TODO: PBaseSize");
+			}
+			if (hints.flags & PWinGravity) {
+				warn_log("TODO: PWinGravity");
+			}
+
+			// Extended Window Manager Hints:
+			/* Windows can indicate that they are non-resizable by setting minheight = maxheight and minwidth = maxwidth in the ICCCM WM_NORMAL_HINTS property. The Window Manager MAY decorate such windows differently.
+			 */
+		} else if (event->xproperty.atom == XA_WM_HINTS) {
+			property_log("WM_HINTS");
+			/*
+			  The WM_HINTS.flags bit definitions are as follows:
+			    InputHint         input
+			    StateHint         initial_state
+			    IconPixmapHint    icon_pixmap
+			    IconWindowHint    icon_window
+			    IconPositionHint  icon_x & icon_y
+			    IconMaskHint      icon_mask
+			    WindowGroupHint  	window_group
+			    MessageHint       (this bit is obsolete)
+			    UrgencyHint       urgency
+			*/
+
+			// Extended Window Manager Hints:
+			/* Windows expecting immediate user action should indicate this using the urgency bit in the WM_HINTS.flags property, as defined in the ICCCM. */
+
+		} else if (event->xproperty.atom == XA_WM_CLASS) {
+			property_log("WM_CLASS");
+			/*
+			  The WM_CLASS property (of type STRING without control characters) contains two consecutive null-terminated strings. These specify the Instance and Class names to be used by both the client and the window manager for looking up resources for the application or as identifying information. This property must be present when the window leaves the Withdrawn state and may be changed only while the window is in the Withdrawn state. Window managers may examine the property only when they start
+			  up and when the window leaves the Withdrawn state, but there should be no need for a client to change its state dynamically.
+			*/
+		} else if (event->xproperty.atom == XA_WM_TRANSIENT_FOR) {
+			property_log("WM_TRANSIENT_FOR");
+			/*
+			  The WM_TRANSIENT_FOR property (of type WINDOW) contains the ID of another top-level window. The implication is that this window is a pop-up on behalf of the named window, and window managers may decide not to decorate transient windows or may treat them differently in other ways. In particular, window managers should present newly mapped WM_TRANSIENT_FOR windows without requiring any user interaction, even if mapping top-level windows normally does require interaction. Dialogue boxes,
+			  for example, are an example of windows that should have WM_TRANSIENT_FOR set.
+			*/
+		} else if (event->xproperty.atom == display->atoms[wm_protocols]) {
+			property_log("WM_PROTOCOLS");
+			/* The WM_PROTOCOLS property (of type ATOM) is a list of atoms. Each atom identifies a communication protocol between the client and the window manager in which the client is willing to participate. Atoms can identify both standard protocols and private protocols specific to individual window managers. */
+
+			// NOTE: WM_PROTOCOLS and WM_COLORMAP_WINDOWS are not predefined for _some_ reason
+		} else if (event->xproperty.atom == display->atoms[wm_colormap_windows]) {
+			property_log("WM_COLORMAP_WINDOWS");
+			/* The WM_COLORMAP_WINDOWS property (of type WINDOW) on a top-level window is a list of the IDs of windows that may need colormaps installed that differ from the colormap of the top-level window. The window manager will watch this list of windows for changes in their colormap attributes. The top-level window is always (implicitly or explicitly) on the watch list. For the details of this mechanism, see Colormaps */
+
+			// NOTE: WM_PROTOCOLS and WM_COLORMAP_WINDOWS are not predefined for _some_ reason
+		} else if (event->xproperty.atom == XA_WM_CLIENT_MACHINE) {
+			property_log("WM_CLIENT_MACHINE");
+			/* The client should set the WM_CLIENT_MACHINE property (of one of the TEXT types) to a string that forms the name of the machine running the client as seen from the machine running the server. */
 		}
 
-		if (i == display->windows->size - 1) return;
+		// start of extended window manager hints:
+
+		else if (event->xproperty.atom == display->atoms[net_wm_name]) {
+			property_log("_NET_WM_NAME");
+			/* The Client SHOULD set this to the title of the window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_NAME. */
+		} else if (event->xproperty.atom == display->atoms[net_wm_icon_name]) {
+			property_log("_NET_WM_ICON_NAME");
+			/* The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_ICON_NAME. */
+		} else if (event->xproperty.atom == display->atoms[net_wm_desktop]) {
+			property_log("_NET_WM_DESKTOP");
+			/* Cardinal to determine the desktop the window is in (or wants to be) starting with 0 for the first desktop. A Client MAY choose not to set this property, in which case the Window Manager SHOULD place it as it wishes. 0xFFFFFFFF indicates that the window SHOULD appear on all desktops. */
+		} else if (event->xproperty.atom == display->atoms[net_wm_window_type]) {
+			property_log("_NET_WM_WINDOW_TYPE");
+			/*
+			  his SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to allow for extension of the list of types whilst providing
+			  default behavior for Window Managers that do not recognize the extensions.
+			*/
+		} else if (event->xproperty.atom == display->atoms[net_wm_state]) {
+			property_log("_NET_WM_STATE");
+			/* A list of hints describing the window state. Atoms present in the list MUST be considered set, atoms not present in the list MUST be considered not set. The Window Manager SHOULD honor _NET_WM_STATE whenever a withdrawn window requests to be mapped. A Client wishing to change the state of a window MUST send a _NET_WM_STATE client message to the display->root window (see below). The Window Manager MUST keep this property updated to reflect the current state of the window. */
+
+			int di = 0;
+			ulong dl = 0;
+			uchar* p = NULL;
+			Atom da = None, atom = None;
+
+			XGetWindowProperty(display->x_display, event->xproperty.window, display->atoms[net_wm_state], 0, sizeof(Atom), false, XA_ATOM, &da, &di, &dl, &dl, &p);
+			if (!p) return;
+			atom = *(Atom*)p;
+			XFree(p);
+
+			/*
+			  Possible atoms are:
+
+			    _NET_WM_STATE_MODAL, ATOM
+			    _NET_WM_STATE_STICKY, ATOM
+			    _NET_WM_STATE_MAXIMIZED_VERT, ATOM
+			    _NET_WM_STATE_MAXIMIZED_HORZ, ATOM
+			    _NET_WM_STATE_SHADED, ATOM
+			    _NET_WM_STATE_SKIP_TASKBAR, ATOM
+			    _NET_WM_STATE_SKIP_PAGER, ATOM
+			    _NET_WM_STATE_HIDDEN, ATOM
+			    _NET_WM_STATE_FULLSCREEN, ATOM
+			    _NET_WM_STATE_ABOVE, ATOM
+			    _NET_WM_STATE_BELOW, ATOM
+			    _NET_WM_STATE_DEMANDS_ATTENTION, ATOM
+			    _NET_WM_STATE_FOCUSED, ATOM
+			*/
+
+			if (atom == display->atoms[net_wm_state_modal]) {
+				// _NET_WM_STATE_MODAL indicates that this is a modal dialog box. If the WM_TRANSIENT_FOR hint is set to another toplevel window, the dialog is modal for that window; if WM_TRANSIENT_FOR is not set or set to the display->root window the dialog is modal for its window group.
+			} else if (atom == display->atoms[net_wm_state_sticky]) {
+				// _NET_WM_STATE_STICKY indicates that the Window Manager SHOULD keep the window's position fixed on the screen, even when the virtual desktop scrolls.
+			} else if (atom == display->atoms[net_wm_state_maximized_vert]) {
+				// _NET_WM_STATE_MAXIMIZED_VERT indicates that the window is vertically maximized.
+			} else if (atom == display->atoms[net_wm_state_maximized_horz]) {
+				// _NET_WM_STATE_MAXIMIZED_HORZ indicates that the window is horizontally maximized.
+			} else if (atom == display->atoms[net_wm_state_shaded]) {
+				// _NET_WM_STATE_SHADED indicates that the window is shaded.
+			} else if (atom == display->atoms[net_wm_state_skip_taskbar]) {
+				// _NET_WM_STATE_SKIP_TASKBAR indicates that the window should not be included on a taskbar. This hint should be requested by the application, i.e. it indicates that the window by nature is never in the taskbar. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact nature of the window.
+			} else if (atom == display->atoms[net_wm_state_skip_pager]) {
+				// _NET_WM_STATE_SKIP_PAGER indicates that the window should not be included on a Pager. This hint should be requested by the application, i.e. it indicates that the window by nature is never in the Pager. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact nature of the window.
+			} else if (atom == display->atoms[net_wm_state_hidden]) {
+				// _NET_WM_STATE_HIDDEN should be set by the Window Manager to indicate that a window would not be visible on the screen if its desktop/viewport were active and its coordinates were within the screen bounds. The canonical example is that minimized windows should be in the _NET_WM_STATE_HIDDEN state. Pagers and similar applications should use _NET_WM_STATE_HIDDEN instead of WM_STATE to decide whether to display a window in miniature representations of the windows on a desktop.
+
+				// Implementation note: if an Application asks to toggle _NET_WM_STATE_HIDDEN the Window Manager should probably just ignore the request, since _NET_WM_STATE_HIDDEN is a function of some other aspect of the window such as minimization, rather than an independent state.
+			} else if (atom == display->atoms[net_wm_state_fullscreen]) {
+				// _NET_WM_STATE_FULLSCREEN indicates that the window should fill the entire screen and have no window decorations. Additionally the Window Manager is responsible for restoring the original geometry after a switch from fullscreen back to normal window. For example, a presentation program would use this hint.
+				window->fullscreen = true;
+				window->saved_position_x = 0;
+				window->saved_position_y = 0;
+				window->saved_width = display->width;
+				window->saved_height = display->height;
+			} else if (atom == display->atoms[net_wm_state_above]) {
+				// _NET_WM_STATE_ABOVE indicates that the window should be on top of most windows (see the section called “Stacking order” for details).
+
+				// _NET_WM_STATE_ABOVE and _NET_WM_STATE_BELOW are mainly meant for user preferences and should not be used by applications e.g. for drawing attention to their dialogs (the Urgency hint should be used in that case, see the section called “Urgency”).'
+			} else if (atom == display->atoms[net_wm_state_below]) {
+				// _NET_WM_STATE_BELOW indicates that the window should be below most windows (see the section called “Stacking order” for details).
+
+				// _NET_WM_STATE_ABOVE and _NET_WM_STATE_BELOW are mainly meant for user preferences and should not be used by applications e.g. for drawing attention to their dialogs (the Urgency hint should be used in that case, see the section called “Urgency”).'
+			} else if (atom == display->atoms[net_wm_state_demands_attention]) {
+				// _NET_WM_STATE_DEMANDS_ATTENTION indicates that some action in or with the window happened. For example, it may be set by the Window Manager if the window requested activation but the Window Manager refused it, or the application may set it if it finished some work. This state may be set by both the Client and the Window Manager. It should be unset by the Window Manager when it decides the window got the required attention (usually, that it got activated).
+			} else if (atom == display->atoms[net_wm_state_focused]) {
+				// _NET_WM_STATE_FOCUSED indicates whether the window's decorations are drawn in an active state. Clients MUST regard it as a read-only hint. It cannot be set at map time or changed via a _NET_WM_STATE client message. The window given by _NET_ACTIVE_WINDOW will usually have this hint, but at times other windows may as well, if they have a strong association with the active window and will be considered as a unit with it by the user. Clients that modify the appearance of internal
+				// elements when a toplevel has keyboard focus SHOULD check for the availability of this state in _NET_SUPPORTED and, if it is available, use it in preference to tracking focus via FocusIn events. By doing so they will match the window decorations and accurately reflect the intentions of the Window Manager.
+			}
+		} else if (event->xproperty.atom == display->atoms[net_wm_strut]) {
+			property_log("_NET_WM_STRUT");
+			// This property is equivalent to a _NET_WM_STRUT_PARTIAL property where all start values are 0 and all end values are the height or width of the logical screen. _NET_WM_STRUT_PARTIAL was introduced later than _NET_WM_STRUT, however, so clients MAY set this property in addition to _NET_WM_STRUT_PARTIAL to ensure backward compatibility with Window Managers supporting older versions of the Specification.
+		} else if (event->xproperty.atom == display->atoms[net_wm_strut_partial]) {
+			property_log("_NET_WM_STRUT_PARTIAL");
+			// This property MUST be set by the Client if the window is to reserve space at the edge of the screen. The property contains 4 cardinals specifying the width of the reserved area at each border of the screen, and an additional 8 cardinals specifying the beginning and end corresponding to each of the four struts. The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x. All coordinates
+			// are display->root window coordinates. The client MAY change this property at any time, therefore the Window Manager MUST watch for property notify events if the Window Manager uses this property to assign special semantics to the window.
+		} else if (event->xproperty.atom == display->atoms[net_wm_icon_geometry]) {
+			property_log("_NET_WM_ICON_GEOMETRY");
+			// This optional property MAY be set by stand alone tools like a taskbar or an iconbox. It specifies the geometry of a possible icon in case the window is iconified.
+		} else if (event->xproperty.atom == display->atoms[net_wm_icon]) {
+			property_log("_NET_WM_ICON");
+			// This is an array of possible icons for the client. This specification does not stipulate what size these icons should be, but individual desktop environments or toolkits may do so. The Window Manager MAY scale any of these icons to an appropriate size.
+		} else if (event->xproperty.atom == display->atoms[net_wm_pid]) {
+			property_log("_NET_WM_PID");
+			// If set, this property MUST contain the process ID of the client owning this window. This MAY be used by the Window Manager to kill windows which do not respond to the _NET_WM_PING protocol.
+		} else if (event->xproperty.atom == display->atoms[net_wm_allowed_actions]) {
+			property_log("_NET_WM_ALLOWED_ACTIONS");
+			// A list of atoms indicating user operations that the Window Manager supports for this window. Atoms present in the list indicate allowed actions, atoms not present in the list indicate actions that are not supported for this window. The Window Manager MUST keep this property updated to reflect the actions which are currently "active" or "sensitive" for a window. Taskbars, Pagers, and other tools use _NET_WM_ALLOWED_ACTIONS to decide which actions should be made available to the user.
+		} else if (event->xproperty.atom == display->atoms[net_wm_handled_icons]) {
+			property_log("_NET_WM_HANDLED_ICONS");
+			// This property can be set by a Pager on one of its own toplevel windows to indicate that the Window Manager need not provide icons for iconified windows, for example if it is a taskbar and provides buttons for iconified windows.
+		} else if (event->xproperty.atom == display->atoms[net_wm_user_time]) {
+			property_log("_NET_WM_USER_TIME");
+			// This property contains the XServer time at which last user activity in this window took place.
+
+			// Clients should set this property on every new toplevel window (or on the window pointed out by the _NET_WM_USER_TIME_WINDOW property), before mapping the window, to the timestamp of the user interaction that caused the window to appear. A client that only deals with core events, might, for example, use the timestamp of the last KeyPress or ButtonPress event-> ButtonRelease and KeyRelease events should not generally be considered to be user interaction, because an application may
+			// receive KeyRelease events from global keybindings, and generally release events may have later timestamp than actions that were triggered by the matching press events. Clients can obtain the timestamp that caused its first window to appear from the DESKTOP_STARTUP_ID environment variable, if the app was launched with startup notification. If the client does not know the timestamp of the user interaction that caused the first window to appear (e.g. because it was not launched with
+			// startup notification), then it should not set the property for that window. The special value of zero on a newly mapped window can be used to request that the window not be initially focused when it is mapped.
+
+			// If the client has the active window, it should also update this property on the window whenever there's user activity.
+
+			// Rationale: This property allows a Window Manager to alter the focus, stacking, and/or placement behavior of windows when they are mapped depending on whether the new window was created by a user action or is a "pop-up" window activated by a timer or some other event->
+		} else if (event->xproperty.atom == display->atoms[net_wm_user_time_window]) {
+			property_log("_NET_WM_USER_TIME_WINDOW");
+			// This property contains the XID of a window on which the client sets the _NET_WM_USER_TIME property. Clients should check whether the window manager supports _NET_WM_USER_TIME_WINDOW and fall back to setting the _NET_WM_USER_TIME property on the toplevel window if it doesn't.
+
+			// Rationale: Storing the frequently changing _NET_WM_USER_TIME property on the toplevel window itx_window causes every application that is interested in any of the properties of that window to be woken up on every keypress, which is particularly bad for laptops running on battery power.
+		} else if (event->xproperty.atom == display->atoms[net_wm_opaque_region]) {
+			property_log("_NET_WM_OPAQUE_REGION");
+			// The Client MAY set this property to a list of 4-tuples [x, y, width, height], each representing a rectangle in window coordinates where the pixels of the window's contents have a fully opaque alpha value. If the window is drawn by the compositor without adding any transparency, then such a rectangle will occlude whatever is drawn behind it. When the window has an RGB visual rather than an ARGB visual, this property is not typically useful, since the effective opaque region of a window
+			// is exactly the bounding region of the window as set via the shape extension. For windows with an ARGB visual and also a bounding region set via the shape extension, the effective opaque region is given by the intersection of the region set by this property and the bounding region set via the shape extension. The compositing manager MAY ignore this hint.
+
+			// Rationale: This gives the compositing manager more room for optimizations. For example, it can avoid drawing occluded portions behind the window.
+		} else if (event->xproperty.atom == display->atoms[net_wm_bypass_compositor]) {
+			property_log("_NET_WM_BYPASS_COMPOSITOR");
+			// The Client MAY set this property to hint the compositor that the window would benefit from running uncomposited (i.e not redirected offscreen) or that the window might be hurt from being uncomposited. A value of 0 indicates no preference. A value of 1 hints the compositor to disabling compositing of this window. A value of 2 hints the compositor to not disabling compositing of this window. All other values are reserved and should be treated the same as a value of 0. The compositing
+			// manager MAY bypass compositing for both fullscreen and non-fullscreen windows if bypassing is requested, but MUST NOT bypass if it would cause differences from the composited appearance.
+		} else {
+			warn_log("\"default case\" reached at the PropertyNotify \"switch\"");
+		}
 	}
-
-	// start of icccm spec:
-	if (event->xproperty.atom == XA_WM_NAME) {
-		property_log("WM_NAME");
-		/*
-		  The WM_NAME property is an uninterpreted string that the client wants the window manager to display in association with the window (for example, in a window headline bar).]
-		*/
-	} else if (event->xproperty.atom == XA_WM_ICON_NAME) {
-		property_log("WM_ICON_NAME");
-		/* The WM_ICON_NAME property is an uninterpreted string that the client wants to be displayed in association with the window when it is iconified (for example, in an icon label). In other respects, including the type, it is similar to WM_NAME. For obvious geometric reasons, fewer characters will normally be visible in WM_ICON_NAME than WM_NAME.
-		 */
-	} else if (event->xproperty.atom == XA_WM_NORMAL_HINTS) {
-		property_log("WM_NORMAL_HINTS");
-		XSizeHints hints;
-		long supplied_return = 0;
-		warn_log("ignoring the return value of a function that returns Status");
-		XGetWMNormalHints(display->x_display, window->x_window, &hints, &supplied_return);
-
-		/*
-		  The WM_SIZE_HINTS.flags bit definitions are as follows:
-
-		    USPosition   User-specified x, y
-		    USSize       User-specified width, height
-		    PPosition    Program-specified position
-		    PSize        Program-specified size
-		    PMinSize     Program-specified minimum size
-		    PMaxSize     Program-specified maximum size
-		    PResizeInc   Program-specified resize increments
-		    PAspect      Program-specified min and max aspect ratios
-		    PBaseSize    Program-specified base size
-		    PWinGravity  Program-specified window gravity
-		*/
-
-		if (hints.flags & USPosition) {
-			warn_log("TODO: USPosition");
-		}
-		if (hints.flags & USSize) {
-			warn_log("TODO: USSize");
-		}
-		if (hints.flags & PPosition) {
-			warn_log("ignoring obsolete functionality");
-		}
-		if (hints.flags & PSize) {
-			warn_log("ignoring obsolete functionality");
-		}
-		if (hints.flags & PMinSize) {
-			warn_log("TODO: PMinSize");
-		}
-		if (hints.flags & PMaxSize) {
-			warn_log("TODO: PMaxSize");
-		}
-		if (hints.flags & PResizeInc) {
-			warn_log("TODO: PResizeInc");
-		}
-		if (hints.flags & PAspect) {
-			warn_log("TODO: PAspect");
-		}
-		if (hints.flags & PBaseSize) {
-			warn_log("TODO: PBaseSize");
-		}
-		if (hints.flags & PWinGravity) {
-			warn_log("TODO: PWinGravity");
-		}
-
-		// Extended Window Manager Hints:
-		/* Windows can indicate that they are non-resizable by setting minheight = maxheight and minwidth = maxwidth in the ICCCM WM_NORMAL_HINTS property. The Window Manager MAY decorate such windows differently.
-		 */
-	} else if (event->xproperty.atom == XA_WM_HINTS) {
-		property_log("WM_HINTS");
-		/*
-		  The WM_HINTS.flags bit definitions are as follows:
-		    InputHint         input
-		    StateHint         initial_state
-		    IconPixmapHint    icon_pixmap
-		    IconWindowHint    icon_window
-		    IconPositionHint  icon_x & icon_y
-		    IconMaskHint      icon_mask
-		    WindowGroupHint  	window_group
-		    MessageHint       (this bit is obsolete)
-		    UrgencyHint       urgency
-		*/
-
-		// Extended Window Manager Hints:
-		/* Windows expecting immediate user action should indicate this using the urgency bit in the WM_HINTS.flags property, as defined in the ICCCM. */
-
-	} else if (event->xproperty.atom == XA_WM_CLASS) {
-		property_log("WM_CLASS");
-		/*
-		  The WM_CLASS property (of type STRING without control characters) contains two consecutive null-terminated strings. These specify the Instance and Class names to be used by both the client and the window manager for looking up resources for the application or as identifying information. This property must be present when the window leaves the Withdrawn state and may be changed only while the window is in the Withdrawn state. Window managers may examine the property only when they start up
-		  and when the window leaves the Withdrawn state, but there should be no need for a client to change its state dynamically.
-		*/
-	} else if (event->xproperty.atom == XA_WM_TRANSIENT_FOR) {
-		property_log("WM_TRANSIENT_FOR");
-		/*
-		  The WM_TRANSIENT_FOR property (of type WINDOW) contains the ID of another top-level window. The implication is that this window is a pop-up on behalf of the named window, and window managers may decide not to decorate transient windows or may treat them differently in other ways. In particular, window managers should present newly mapped WM_TRANSIENT_FOR windows without requiring any user interaction, even if mapping top-level windows normally does require interaction. Dialogue boxes, for
-		  example, are an example of windows that should have WM_TRANSIENT_FOR set.
-		*/
-	} else if (event->xproperty.atom == display->atoms[wm_protocols]) {
-		property_log("WM_PROTOCOLS");
-		/* The WM_PROTOCOLS property (of type ATOM) is a list of atoms. Each atom identifies a communication protocol between the client and the window manager in which the client is willing to participate. Atoms can identify both standard protocols and private protocols specific to individual window managers. */
-
-		// NOTE: WM_PROTOCOLS and WM_COLORMAP_WINDOWS are not predefined for _some_ reason
-	} else if (event->xproperty.atom == display->atoms[wm_colormap_windows]) {
-		property_log("WM_COLORMAP_WINDOWS");
-		/* The WM_COLORMAP_WINDOWS property (of type WINDOW) on a top-level window is a list of the IDs of windows that may need colormaps installed that differ from the colormap of the top-level window. The window manager will watch this list of windows for changes in their colormap attributes. The top-level window is always (implicitly or explicitly) on the watch list. For the details of this mechanism, see Colormaps */
-
-		// NOTE: WM_PROTOCOLS and WM_COLORMAP_WINDOWS are not predefined for _some_ reason
-	} else if (event->xproperty.atom == XA_WM_CLIENT_MACHINE) {
-		property_log("WM_CLIENT_MACHINE");
-		/* The client should set the WM_CLIENT_MACHINE property (of one of the TEXT types) to a string that forms the name of the machine running the client as seen from the machine running the server. */
-	}
-
-	// start of extended window manager hints:
-
-	else if (event->xproperty.atom == display->atoms[net_wm_name]) {
-		property_log("_NET_WM_NAME");
-		/* The Client SHOULD set this to the title of the window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_NAME. */
-	} else if (event->xproperty.atom == display->atoms[net_wm_icon_name]) {
-		property_log("_NET_WM_ICON_NAME");
-		/* The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_ICON_NAME. */
-	} else if (event->xproperty.atom == display->atoms[net_wm_desktop]) {
-		property_log("_NET_WM_DESKTOP");
-		/* Cardinal to determine the desktop the window is in (or wants to be) starting with 0 for the first desktop. A Client MAY choose not to set this property, in which case the Window Manager SHOULD place it as it wishes. 0xFFFFFFFF indicates that the window SHOULD appear on all desktops. */
-	} else if (event->xproperty.atom == display->atoms[net_wm_window_type]) {
-		property_log("_NET_WM_WINDOW_TYPE");
-		/*
-		  his SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to allow for extension of the list of types whilst providing
-		  default behavior for Window Managers that do not recognize the extensions.
-		*/
-	} else if (event->xproperty.atom == display->atoms[net_wm_state]) {
-		property_log("_NET_WM_STATE");
-		/* A list of hints describing the window state. Atoms present in the list MUST be considered set, atoms not present in the list MUST be considered not set. The Window Manager SHOULD honor _NET_WM_STATE whenever a withdrawn window requests to be mapped. A Client wishing to change the state of a window MUST send a _NET_WM_STATE client message to the display->root window (see below). The Window Manager MUST keep this property updated to reflect the current state of the window. */
-
-		int di = 0;
-		ulong dl = 0;
-		uchar* p = NULL;
-		Atom da = None, atom = None;
-
-		XGetWindowProperty(display->x_display, event->xproperty.window, display->atoms[net_wm_state], 0, sizeof(Atom), false, XA_ATOM, &da, &di, &dl, &dl, &p);
-		if (!p) return;
-		atom = *(Atom*)p;
-		XFree(p);
-
-		/*
-		  Possible atoms are:
-
-		    _NET_WM_STATE_MODAL, ATOM
-		    _NET_WM_STATE_STICKY, ATOM
-		    _NET_WM_STATE_MAXIMIZED_VERT, ATOM
-		    _NET_WM_STATE_MAXIMIZED_HORZ, ATOM
-		    _NET_WM_STATE_SHADED, ATOM
-		    _NET_WM_STATE_SKIP_TASKBAR, ATOM
-		    _NET_WM_STATE_SKIP_PAGER, ATOM
-		    _NET_WM_STATE_HIDDEN, ATOM
-		    _NET_WM_STATE_FULLSCREEN, ATOM
-		    _NET_WM_STATE_ABOVE, ATOM
-		    _NET_WM_STATE_BELOW, ATOM
-		    _NET_WM_STATE_DEMANDS_ATTENTION, ATOM
-		    _NET_WM_STATE_FOCUSED, ATOM
-		*/
-
-		if (atom == display->atoms[net_wm_state_modal]) {
-			// _NET_WM_STATE_MODAL indicates that this is a modal dialog box. If the WM_TRANSIENT_FOR hint is set to another toplevel window, the dialog is modal for that window; if WM_TRANSIENT_FOR is not set or set to the display->root window the dialog is modal for its window group.
-		} else if (atom == display->atoms[net_wm_state_sticky]) {
-			// _NET_WM_STATE_STICKY indicates that the Window Manager SHOULD keep the window's position fixed on the screen, even when the virtual desktop scrolls.
-		} else if (atom == display->atoms[net_wm_state_maximized_vert]) {
-			// _NET_WM_STATE_MAXIMIZED_VERT indicates that the window is vertically maximized.
-		} else if (atom == display->atoms[net_wm_state_maximized_horz]) {
-			// _NET_WM_STATE_MAXIMIZED_HORZ indicates that the window is horizontally maximized.
-		} else if (atom == display->atoms[net_wm_state_shaded]) {
-			// _NET_WM_STATE_SHADED indicates that the window is shaded.
-		} else if (atom == display->atoms[net_wm_state_skip_taskbar]) {
-			// _NET_WM_STATE_SKIP_TASKBAR indicates that the window should not be included on a taskbar. This hint should be requested by the application, i.e. it indicates that the window by nature is never in the taskbar. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact nature of the window.
-		} else if (atom == display->atoms[net_wm_state_skip_pager]) {
-			// _NET_WM_STATE_SKIP_PAGER indicates that the window should not be included on a Pager. This hint should be requested by the application, i.e. it indicates that the window by nature is never in the Pager. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact nature of the window.
-		} else if (atom == display->atoms[net_wm_state_hidden]) {
-			// _NET_WM_STATE_HIDDEN should be set by the Window Manager to indicate that a window would not be visible on the screen if its desktop/viewport were active and its coordinates were within the screen bounds. The canonical example is that minimized windows should be in the _NET_WM_STATE_HIDDEN state. Pagers and similar applications should use _NET_WM_STATE_HIDDEN instead of WM_STATE to decide whether to display a window in miniature representations of the windows on a desktop.
-
-			// Implementation note: if an Application asks to toggle _NET_WM_STATE_HIDDEN the Window Manager should probably just ignore the request, since _NET_WM_STATE_HIDDEN is a function of some other aspect of the window such as minimization, rather than an independent state.
-		} else if (atom == display->atoms[net_wm_state_fullscreen]) {
-			// _NET_WM_STATE_FULLSCREEN indicates that the window should fill the entire screen and have no window decorations. Additionally the Window Manager is responsible for restoring the original geometry after a switch from fullscreen back to normal window. For example, a presentation program would use this hint.
-			window->fullscreen = true;
-			window->saved_position_x = 0;
-			window->saved_position_y = 0;
-			window->saved_width = display->width;
-			window->saved_height = display->height;
-		} else if (atom == display->atoms[net_wm_state_above]) {
-			// _NET_WM_STATE_ABOVE indicates that the window should be on top of most windows (see the section called “Stacking order” for details).
-
-			// _NET_WM_STATE_ABOVE and _NET_WM_STATE_BELOW are mainly meant for user preferences and should not be used by applications e.g. for drawing attention to their dialogs (the Urgency hint should be used in that case, see the section called “Urgency”).'
-		} else if (atom == display->atoms[net_wm_state_below]) {
-			// _NET_WM_STATE_BELOW indicates that the window should be below most windows (see the section called “Stacking order” for details).
-
-			// _NET_WM_STATE_ABOVE and _NET_WM_STATE_BELOW are mainly meant for user preferences and should not be used by applications e.g. for drawing attention to their dialogs (the Urgency hint should be used in that case, see the section called “Urgency”).'
-		} else if (atom == display->atoms[net_wm_state_demands_attention]) {
-			// _NET_WM_STATE_DEMANDS_ATTENTION indicates that some action in or with the window happened. For example, it may be set by the Window Manager if the window requested activation but the Window Manager refused it, or the application may set it if it finished some work. This state may be set by both the Client and the Window Manager. It should be unset by the Window Manager when it decides the window got the required attention (usually, that it got activated).
-		} else if (atom == display->atoms[net_wm_state_focused]) {
-			// _NET_WM_STATE_FOCUSED indicates whether the window's decorations are drawn in an active state. Clients MUST regard it as a read-only hint. It cannot be set at map time or changed via a _NET_WM_STATE client message. The window given by _NET_ACTIVE_WINDOW will usually have this hint, but at times other windows may as well, if they have a strong association with the active window and will be considered as a unit with it by the user. Clients that modify the appearance of internal
-			// elements when a toplevel has keyboard focus SHOULD check for the availability of this state in _NET_SUPPORTED and, if it is available, use it in preference to tracking focus via FocusIn events. By doing so they will match the window decorations and accurately reflect the intentions of the Window Manager.
-		}
-	} else if (event->xproperty.atom == display->atoms[net_wm_strut]) {
-		property_log("_NET_WM_STRUT");
-		// This property is equivalent to a _NET_WM_STRUT_PARTIAL property where all start values are 0 and all end values are the height or width of the logical screen. _NET_WM_STRUT_PARTIAL was introduced later than _NET_WM_STRUT, however, so clients MAY set this property in addition to _NET_WM_STRUT_PARTIAL to ensure backward compatibility with Window Managers supporting older versions of the Specification.
-	} else if (event->xproperty.atom == display->atoms[net_wm_strut_partial]) {
-		property_log("_NET_WM_STRUT_PARTIAL");
-		// This property MUST be set by the Client if the window is to reserve space at the edge of the screen. The property contains 4 cardinals specifying the width of the reserved area at each border of the screen, and an additional 8 cardinals specifying the beginning and end corresponding to each of the four struts. The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x. All coordinates
-		// are display->root window coordinates. The client MAY change this property at any time, therefore the Window Manager MUST watch for property notify events if the Window Manager uses this property to assign special semantics to the window.
-	} else if (event->xproperty.atom == display->atoms[net_wm_icon_geometry]) {
-		property_log("_NET_WM_ICON_GEOMETRY");
-		// This optional property MAY be set by stand alone tools like a taskbar or an iconbox. It specifies the geometry of a possible icon in case the window is iconified.
-	} else if (event->xproperty.atom == display->atoms[net_wm_icon]) {
-		property_log("_NET_WM_ICON");
-		// This is an array of possible icons for the client. This specification does not stipulate what size these icons should be, but individual desktop environments or toolkits may do so. The Window Manager MAY scale any of these icons to an appropriate size.
-	} else if (event->xproperty.atom == display->atoms[net_wm_pid]) {
-		property_log("_NET_WM_PID");
-		// If set, this property MUST contain the process ID of the client owning this window. This MAY be used by the Window Manager to kill windows which do not respond to the _NET_WM_PING protocol.
-	} else if (event->xproperty.atom == display->atoms[net_wm_allowed_actions]) {
-		property_log("_NET_WM_ALLOWED_ACTIONS");
-		// A list of atoms indicating user operations that the Window Manager supports for this window. Atoms present in the list indicate allowed actions, atoms not present in the list indicate actions that are not supported for this window. The Window Manager MUST keep this property updated to reflect the actions which are currently "active" or "sensitive" for a window. Taskbars, Pagers, and other tools use _NET_WM_ALLOWED_ACTIONS to decide which actions should be made available to the user.
-	} else if (event->xproperty.atom == display->atoms[net_wm_handled_icons]) {
-		property_log("_NET_WM_HANDLED_ICONS");
-		// This property can be set by a Pager on one of its own toplevel windows to indicate that the Window Manager need not provide icons for iconified windows, for example if it is a taskbar and provides buttons for iconified windows.
-	} else if (event->xproperty.atom == display->atoms[net_wm_user_time]) {
-		property_log("_NET_WM_USER_TIME");
-		// This property contains the XServer time at which last user activity in this window took place.
-
-		// Clients should set this property on every new toplevel window (or on the window pointed out by the _NET_WM_USER_TIME_WINDOW property), before mapping the window, to the timestamp of the user interaction that caused the window to appear. A client that only deals with core events, might, for example, use the timestamp of the last KeyPress or ButtonPress event-> ButtonRelease and KeyRelease events should not generally be considered to be user interaction, because an application may
-		// receive KeyRelease events from global keybindings, and generally release events may have later timestamp than actions that were triggered by the matching press events. Clients can obtain the timestamp that caused its first window to appear from the DESKTOP_STARTUP_ID environment variable, if the app was launched with startup notification. If the client does not know the timestamp of the user interaction that caused the first window to appear (e.g. because it was not launched with
-		// startup notification), then it should not set the property for that window. The special value of zero on a newly mapped window can be used to request that the window not be initially focused when it is mapped.
-
-		// If the client has the active window, it should also update this property on the window whenever there's user activity.
-
-		// Rationale: This property allows a Window Manager to alter the focus, stacking, and/or placement behavior of windows when they are mapped depending on whether the new window was created by a user action or is a "pop-up" window activated by a timer or some other event->
-	} else if (event->xproperty.atom == display->atoms[net_wm_user_time_window]) {
-		property_log("_NET_WM_USER_TIME_WINDOW");
-		// This property contains the XID of a window on which the client sets the _NET_WM_USER_TIME property. Clients should check whether the window manager supports _NET_WM_USER_TIME_WINDOW and fall back to setting the _NET_WM_USER_TIME property on the toplevel window if it doesn't.
-
-		// Rationale: Storing the frequently changing _NET_WM_USER_TIME property on the toplevel window itx_window causes every application that is interested in any of the properties of that window to be woken up on every keypress, which is particularly bad for laptops running on battery power.
-	} else if (event->xproperty.atom == display->atoms[net_wm_opaque_region]) {
-		property_log("_NET_WM_OPAQUE_REGION");
-		// The Client MAY set this property to a list of 4-tuples [x, y, width, height], each representing a rectangle in window coordinates where the pixels of the window's contents have a fully opaque alpha value. If the window is drawn by the compositor without adding any transparency, then such a rectangle will occlude whatever is drawn behind it. When the window has an RGB visual rather than an ARGB visual, this property is not typically useful, since the effective opaque region of a window
-		// is exactly the bounding region of the window as set via the shape extension. For windows with an ARGB visual and also a bounding region set via the shape extension, the effective opaque region is given by the intersection of the region set by this property and the bounding region set via the shape extension. The compositing manager MAY ignore this hint.
-
-		// Rationale: This gives the compositing manager more room for optimizations. For example, it can avoid drawing occluded portions behind the window.
-	} else if (event->xproperty.atom == display->atoms[net_wm_bypass_compositor]) {
-		property_log("_NET_WM_BYPASS_COMPOSITOR");
-		// The Client MAY set this property to hint the compositor that the window would benefit from running uncomposited (i.e not redirected offscreen) or that the window might be hurt from being uncomposited. A value of 0 indicates no preference. A value of 1 hints the compositor to disabling compositing of this window. A value of 2 hints the compositor to not disabling compositing of this window. All other values are reserved and should be treated the same as a value of 0. The compositing
-		// manager MAY bypass compositing for both fullscreen and non-fullscreen windows if bypassing is requested, but MUST NOT bypass if it would cause differences from the composited appearance.
-	} else {
-		warn_log("\"default case\" reached at the PropertyNotify \"switch\"");
-	}
+	window_handle_end
 }
 
 // empty mask events
