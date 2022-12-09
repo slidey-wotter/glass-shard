@@ -53,14 +53,12 @@ sl_window_manager* window_manager () {
 int main () {
 	sl_display* display;
 
-	// NOTE: we do not just close stdin, stdout and stderr right away for the sake of convenience and because xerror_handler callls and signal_action may call std::fprintf(stderr, ...)
 	XSetErrorHandler(xerror_handler);
 	XSetIOErrorHandler(xio_error_handler);
 
 #ifdef D_gcc
 	{
 		struct sigaction signal_action = (struct sigaction) {.sa_flags = SA_RESTART, .sa_handler = &signal_handler};
-		// sigemptyset(&signal_action.sa_mask);
 		if (sigaction(SIGCHLD, &signal_action, NULL) == -1) {
 			perror("sigaction");
 			assert_not_reached();
