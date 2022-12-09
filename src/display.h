@@ -28,6 +28,8 @@
 enum {
 	wm_protocols,
 	wm_colormap_windows,
+	wm_delete_window,
+	wm_take_focus,
 	net_wm_name,
 	net_wm_icon_name,
 	net_wm_desktop,
@@ -59,14 +61,14 @@ enum {
 	net_wm_bypass_compositor,
 	net_supported,
 	net_active_window,
-	wm_delete_window,
-	wm_take_focus,
 	atoms_size
 };
 
 static char* const atoms_string_list[] = {
 "WM_PROTOCOLS",
 "WM_COLORMAP_WINDOWS",
+"WM_DELETE_WINDOW",
+"WM_TAKE_FOCUS",
 "_NET_WM_NAME",
 "_NET_WM_ICON_NAME",
 "_NET_WM_DESKTOP",
@@ -97,11 +99,7 @@ static char* const atoms_string_list[] = {
 "_NET_WM_OPAQUE_REGION",
 "_NET_WM_BYPASS_COMPOSITOR",
 "_NET_SUPPORTED",
-"_NET_ACTIVE_WINDOW",
-"WM_DELETE_WINDOW",
-"WM_TAKE_FOCUS"};
-
-// NOTE: _NET_WM_WINDOW_TYPE and _NET_WM_ALLOWED_ACTIONS are incomplete
+"_NET_ACTIVE_WINDOW"};
 
 #define M_invalid_window_index (size_t) - 1
 
