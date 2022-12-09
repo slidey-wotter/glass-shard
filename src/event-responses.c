@@ -542,8 +542,6 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 		XGrabButton(display->x_display, Button1, Mod4Mask | ControlMask | modifiers[i], window->x_window, false, ButtonPressMask | PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None);
 	}
 
-	get_window_protocols(display, window);
-
 	sl_focus_and_raise_window(display, index, CurrentTime);
 }
 
@@ -705,9 +703,18 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 			*/
 		} else if (event->xproperty.atom == display->atoms[wm_protocols]) {
 			property_log("WM_PROTOCOLS");
-			/* The WM_PROTOCOLS property (of type ATOM) is a list of atoms. Each atom identifies a communication protocol between the client and the window manager in which the client is willing to participate. Atoms can identify both standard protocols and private protocols specific to individual window managers. */
+			/*
+			  Inter-Client Communication Conventions Manual: Chapter 4. Client-to-Window-Manager Communication: Client's Actions: Client Properties:
 
-			// NOTE: WM_PROTOCOLS and WM_COLORMAP_WINDOWS are not predefined for _some_ reason
+			  WM_PROTOCOLS Property:
+
+			  The WM_PROTOCOLS property (of type ATOM) is a list of atoms. Each atom
+			  identifies a communication protocol between the client and the window manager in
+			  which the client is willing to participate. Atoms can identify both standard protocols
+			  and private protocols specific to individual window managers.
+			*/
+
+			return get_window_protocols(display, window);
 		} else if (event->xproperty.atom == display->atoms[wm_colormap_windows]) {
 			property_log("WM_COLORMAP_WINDOWS");
 			/* The WM_COLORMAP_WINDOWS property (of type WINDOW) on a top-level window is a list of the IDs of windows that may need colormaps installed that differ from the colormap of the top-level window. The window manager will watch this list of windows for changes in their colormap attributes. The top-level window is always (implicitly or explicitly) on the watch list. For the details of this mechanism, see Colormaps */

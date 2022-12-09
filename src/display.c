@@ -551,6 +551,49 @@ void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Tim
 }
 
 void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
+	/*
+	  Inter-Client Communication Conventions Manual: Chapter 4. Client-to-Window-Manager Communication: Client Responses to Window Manager Actions:
+
+	  Window Move:
+
+	  If the window manager moves a top-level window without changing its size, the
+	  client will receive a synthetic ConfigureNotify event following the move that
+	  describes the new location in terms of the root coordinate space. Clients must not
+	  respond to being moved by attempting to move themselves to a better location.
+
+	  Any real ConfigureNotify event on a top-level window implies that the window's
+	  position on the root may have changed, even though the event reports that the
+	  window's position in its parent is unchanged because the window may have been
+	  reparented. Note that the coordinates in the event will not, in this case, be directly
+	  useful.
+
+	  The window manager will send these events by using a SendEvent request with the
+	  following arguments:
+
+	  Argument    Value
+	  destination The client's window
+	  propagate   False
+	  event-mask  StructureNotify
+	*/
+
+	/*
+	  Inter-Client Communication Conventions Manual: Chapter 4. Client-to-Window-Manager Communication: Client Responses to Window Manager Actions:
+
+	  Window Resize:
+
+	  The client can elect to receive notification of being resized by selecting for
+	  StructureNotify events on its top-level windows. It will receive a ConfigureNotify
+	  event. The size information in the event will be correct, but the location will be in
+	  the parent window (which may not be the root).
+
+	  The response of the client to being resized should be to accept the size it has
+	  been given and to do its best with it. Clients must not respond to being resized by
+	  attempting to resize themselves to a better size. If the size is impossible to work
+	  with, clients are free to request to change to the Iconic state.
+	*/
+
+	warn_log("todo: send x coordinates correctly for window resize");
+
 	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
 
 	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);

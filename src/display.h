@@ -163,7 +163,7 @@ extern void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t ind
 extern void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y);
 extern void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height);
 extern void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions);
-void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes);
+extern void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes);
 
 extern void sl_maximize_raised_window (sl_display* display);
 extern void sl_expand_raised_window_to_max (sl_display* display);
