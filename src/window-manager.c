@@ -124,25 +124,24 @@ int main () {
 			event_case(ConfigureRequest, sl_configure_request);
 			event_case(MapRequest, sl_map_request);
 
-			// PropertyChangeMask
-			event_case(PropertyNotify, sl_property_notify);
-
 			// ResizeRedirectMask
 			event_case(ResizeRequest, sl_resize_request);
+
+			// PropertyChangeMask
+			event_case(PropertyNotify, sl_property_notify);
 
 			// empty mask events
 			event_case(ClientMessage, sl_client_message);
 			event_case(MappingNotify, sl_mapping_notify);
 			event_case(SelectionClear, sl_selection_clear);
-			event_case(SelectionNotify, sl_selection_notify);
 			event_case(SelectionRequest, sl_selection_request);
+			event_case(SelectionNotify, sl_selection_notify);
 
 			// FocusChangeMask
 			event_case(FocusIn, sl_focus_in);
 			event_case(FocusOut, sl_focus_out);
 
 			// KeyPressMask
-			// NOTE: XGrabKey(...) implies KeyPressMask and (possibly) KeyReleaseMask
 			event_case(KeyPress, sl_key_press);
 			event_case(KeyRelease, sl_key_release);
 

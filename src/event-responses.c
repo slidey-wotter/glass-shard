@@ -69,15 +69,92 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 	}
 }
 
-void sl_button_press (sl_display* display, XEvent* event) { return button_press_or_release(display, event); }
+void sl_button_press (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 
-void sl_button_release (sl_display* display, XEvent* event) { return button_press_or_release(display, event); }
+	  Pointer Button Events:
+
+	  The following describes the event processing that occurs when a pointer button
+	  press is processed with the pointer in some window w and when no active pointer
+	  grab is in progress.
+
+	  The X server searches the ancestors of w from the root down, looking for a passive
+	  grab to activate. If no matching passive grab on the button exists, the X server
+	  automatically starts an active grab for the client receiving the event and sets the
+	  last-pointer-grab time to the current server time. The effect is essentially equivalent
+	  to an XGrabButton with these client passed arguments:
+
+	  Argument      | Value
+	  w             | The event window
+	  event_mask    | The client's selected pointer events on the event window
+	  pointer_mode  | GrabModeAsync
+	  keyboard_mode | GrabModeAsync
+	  owner_events  | True, if the client has selected OwnerGrabButtonMask on the
+	                | event window, otherwise False
+	  confine_to    | None
+	  cursor        | None
+
+	  The active grab is automatically terminated when the logical state of the pointer has
+	  all buttons released. Clients can modify the active grab by calling XUngrabPointer
+	  and XChangeActivePointerGrab.
+	*/
+
+	return button_press_or_release(display, event);
+}
+
+void sl_button_release (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
+
+	  Pointer Button Events:
+
+	  The following describes the event processing that occurs when a pointer button
+	  press is processed with the pointer in some window w and when no active pointer
+	  grab is in progress.
+
+	  The X server searches the ancestors of w from the root down, looking for a passive
+	  grab to activate. If no matching passive grab on the button exists, the X server
+	  automatically starts an active grab for the client receiving the event and sets the
+	  last-pointer-grab time to the current server time. The effect is essentially equivalent
+	  to an XGrabButton with these client passed arguments:
+
+	  Argument      | Value
+	  w             | The event window
+	  event_mask    | The client's selected pointer events on the event window
+	  pointer_mode  | GrabModeAsync
+	  keyboard_mode | GrabModeAsync
+	  owner_events  | True, if the client has selected OwnerGrabButtonMask on the
+	                | event window, otherwise False
+	  confine_to    | None
+	  cursor        | None
+
+	  The active grab is automatically terminated when the logical state of the pointer has
+	  all buttons released. Clients can modify the active grab by calling XUngrabPointer
+	  and XChangeActivePointerGrab.
+	*/
+
+	return button_press_or_release(display, event);
+}
 
 void sl_enter_notify (sl_display* display, XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window Entry/Exit Events:
+
+	  Normal Entry/Exit Events:
+
 	  EnterNotify and LeaveNotify events are generated when the pointer moves from one
 	  window to another window. Normal events are identified by XEnterWindowEvent or
 	  XLeaveWindowEvent structures whose mode member is set to NotifyNormal.
+
+	  Grab and Ungrab Entry/Exit Events:
+
+	  Pseudo-motion mode EnterNotify and LeaveNotify events are generated when a
+	  pointer grab activates or deactivates. Events in which the pointer grab activates are
+	  identified by XEnterWindowEvent or XLeaveWindowEvent structures whose mode
+	  member is set to NotifyGrab. Events in which the pointer grab deactivates are
+	  identified by XEnterWindowEvent or XLeaveWindowEvent structures whose mode
+	  member is set to NotifyUngrab (see XGrabPointer).
 	*/
 
 	if (event->xcrossing.mode != NotifyNormal) return;
@@ -92,13 +169,56 @@ void sl_enter_notify (sl_display* display, XEvent* event) {
 
 void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window Entry/Exit Events:
+
+	  Normal Entry/Exit Events:
+
 	  EnterNotify and LeaveNotify events are generated when the pointer moves from one
 	  window to another window. Normal events are identified by XEnterWindowEvent or
 	  XLeaveWindowEvent structures whose mode member is set to NotifyNormal.
+
+	  Grab and Ungrab Entry/Exit Events:
+
+	  Pseudo-motion mode EnterNotify and LeaveNotify events are generated when a
+	  pointer grab activates or deactivates. Events in which the pointer grab activates are
+	  identified by XEnterWindowEvent or XLeaveWindowEvent structures whose mode
+	  member is set to NotifyGrab. Events in which the pointer grab deactivates are
+	  identified by XEnterWindowEvent or XLeaveWindowEvent structures whose mode
+	  member is set to NotifyUngrab (see XGrabPointer).
 	*/
 }
 
 void sl_motion_notify (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
+
+	  Pointer Button Events:
+
+	  The following describes the event processing that occurs when a pointer button
+	  press is processed with the pointer in some window w and when no active pointer
+	  grab is in progress.
+
+	  The X server searches the ancestors of w from the root down, looking for a passive
+	  grab to activate. If no matching passive grab on the button exists, the X server
+	  automatically starts an active grab for the client receiving the event and sets the
+	  last-pointer-grab time to the current server time. The effect is essentially equivalent
+	  to an XGrabButton with these client passed arguments:
+
+	  Argument      | Value
+	  w             | The event window
+	  event_mask    | The client's selected pointer events on the event window
+	  pointer_mode  | GrabModeAsync
+	  keyboard_mode | GrabModeAsync
+	  owner_events  | True, if the client has selected OwnerGrabButtonMask on the
+	                | event window, otherwise False
+	  confine_to    | None
+	  cursor        | None
+
+	  The active grab is automatically terminated when the logical state of the pointer has
+	  all buttons released. Clients can modify the active grab by calling XUngrabPointer
+	  and XChangeActivePointerGrab.
+	*/
+
 	display->user_input_since_last_workspace_change = true;
 
 	if (!is_valid_window_index(display->raised_window_index)) return;
@@ -132,29 +252,58 @@ void sl_motion_notify (sl_display* display, XEvent* event) {
 	}
 }
 
-void sl_circulate_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {}
+void sl_circulate_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  CirculateNotify Events:
+
+	  The X server can report CirculateNotify events to clients wanting information
+	  about when a window changes its position in the stack. The X server generates
+	  this event type whenever a window is actually restacked as a result of a
+	  client application calling XCirculateSubwindows, XCirculateSubwindowsUp, or
+	  XCirculateSubwindowsDown.
+	*/
+}
 
 void sl_configure_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
-	/*  "The X server can report ConfigureNotify events to clients wanting information about actual changes to a window's state, such as size, position, border, and stacking order. The X server generates this event type whenever one of the following configure window requests made by a client application actually completes:
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
-	  A window's size, position, border, and/or stacking order is reconfigured by calling XConfigureWindow.
+	  ConfigureNotify Events:
 
-	  The window's position in the stacking order is changed by calling XLowerWindow, XRaiseWindow, or XRestackWindows.
+	  The X server can report ConfigureNotify events to clients wanting information
+	  about actual changes to a window's state, such as size, position, border, and
+	  stacking order. The X server generates this event type whenever one of the following
+	  configure window requests made by a client application actually completes:
 
-	  A window is moved by calling XMoveWindow.
+	  • A window's size, position, border, and/or stacking order is reconfigured by calling
+	  XConfigureWindow.
 
-	  A window's size is changed by calling XResizeWindow.
+	  • The window's position in the stacking order is changed by calling XLowerWindow,
+	  XRaiseWindow, or XRestackWindows.
 
-	  A window's size and location is changed by calling XMoveResizeWindow.
+	  • A window is moved by calling XMoveWindow.
+	  • A window's size is changed by calling XResizeWindow.
+	  • A window's size and location is changed by calling XMoveResizeWindow.
+	  • A window is mapped and its position in the stacking order is changed by calling
+	  XMapRaised.
 
-	  A window is mapped and its position in the stacking order is changed by calling XMapRaised.
-
-	  A window's border width is changed by calling XSetWindowBorderWidth." */
-
-	// NOTE: this is possibly unreachable since we recieve ConfigureRequest events.
+	  • A window's border width is changed by calling XSetWindowBorderWidth.
+	*/
 }
 
 void sl_create_notify (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  CreateNotify Events:
+
+	  The X server can report CreateNotify events to clients wanting information
+	  about creation of windows. The X server generates this event whenever a client
+	  application creates a window by calling XCreateWindow or XCreateSimpleWindow.
+	*/
+
 	if (event->xcreatewindow.window == display->root) return; // do nothing
 
 	for (size_t i = 0; i < display->windows->size; ++i) {
@@ -168,6 +317,10 @@ void sl_create_notify (sl_display* display, XEvent* event) {
 
 void sl_destroy_notify (sl_display* display, XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  DestroyNotify Events:
+
 	  The X server can report DestroyNotify events to clients wanting information about
 	  which windows are destroyed. The X server generates this event whenever a client
 	  application destroys a window by calling XDestroyWindow or XDestroySubwindows.
@@ -180,16 +333,52 @@ void sl_destroy_notify (sl_display* display, XEvent* event) {
 	}
 }
 
-void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) { /* "The X server can report GravityNotify events to clients wanting information about when a window is moved because of a change in the size of its parent. The X server generates this event whenever a client application actually moves a child window as a result of resizing its parent by calling XConfigureWindow, XMoveResizeWindow, or XResizeWindow." */
-}
-
-void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) { /* "The X server can report MapNotify events to clients wanting information about which windows are mapped. The X server generates this event type whenever a client application changes the window's state from unmapped to mapped by calling XMapWindow, XMapRaised, XMapSubwindows, XReparentWindow, or as a result of save-set processing." */
-}
-
-void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {}
-
-void sl_unmap_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  GravityNotify Events:
+
+	  The X server can report GravityNotify events to clients wanting information about
+	  when a window is moved because of a change in the size of its parent. The X server
+	  generates this event whenever a client application actually moves a child window
+	  as a result of resizing its parent by calling XConfigureWindow, XMoveResizeWindow,
+	  or XResizeWindow.
+	*/
+}
+
+void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  MapNotify Events:
+
+	  The X server can report MapNotify events to clients wanting information about
+	  which windows are mapped. The X server generates this event type whenever a
+	  client application changes the window's state from unmapped to mapped by calling
+	  XMapWindow, XMapRaised, XMapSubwindows, XReparentWindow, or as a result of save-
+	  set processing.
+	*/
+}
+
+void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  ReparentNotify Events:
+
+	  The X server can report ReparentNotify events to clients wanting information about
+	  changing a window's parent. The X server generates this event whenever a client
+	  application calls XReparentWindow and the window is actually reparented.
+	*/
+}
+
+void sl_unmap_notify (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  UnmapNotify Events:
+
 	  The X server can report UnmapNotify events to clients wanting information about
 	  which windows are unmapped. The X server generates this event type whenever a
 	  client application changes the window's state from mapped to unmapped.
@@ -209,6 +398,10 @@ void sl_unmap_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent*
 
 void sl_circulate_request (sl_display* display, XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
+
+	  CirculateRequest Events:
+
 	  The X server can report CirculateRequest events to clients wanting
 	  information about when another client initiates a circulate window request
 	  on a specified window. The X server generates this event type whenever a
@@ -244,8 +437,12 @@ void sl_circulate_request (sl_display* display, XEvent* event) {
 	}
 }
 
-void sl_configure_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_configure_request (sl_display* display, XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
+
+	  ConfigureRequest Events:
+
 	  The X server can report ConfigureRequest events to clients wanting
 	  information about when a different client initiates a configure window request
 	  on any child of a specified window. The configure window request attempts
@@ -343,12 +540,16 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 
 void sl_map_request (sl_display* display, XEvent* event) {
 	/*
-	 "The X server can report MapRequest events to clients wanting information about
+	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
+
+	  MapRequest Events:
+
+	  The X server can report MapRequest events to clients wanting information about
 	  a different client's desire to map windows. A window is considered mapped when
 	  a map window request completes. The X server generates this event whenever a
 	  different client initiates a map window request on an unmapped window whose
 	  override_redirect member is set to False. Clients initiate map window requests by
-	  calling XMapWindow, XMapRaised, or XMapSubwindows."
+	  calling XMapWindow, XMapRaised, or XMapSubwindows.
 	*/
 
 	for (size_t i = 0; i < display->windows->size; ++i) {
@@ -365,10 +566,14 @@ void sl_map_request (sl_display* display, XEvent* event) {
 
 void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
 	/*
-	 "The X server can report ResizeRequest events to clients wanting information about
+	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
+
+	  ResizeRequest Events:
+
+	  The X server can report ResizeRequest events to clients wanting information about
 	  another client's attempts to change the size of a window. The X server generates
 	  this event whenever some other client attempts to change the size of the specified
-	  window by calling XConfigureWindow, XResizeWindow, or XMoveResizeWindow."
+	  window by calling XConfigureWindow, XResizeWindow, or XMoveResizeWindow.
 	*/
 }
 
@@ -379,6 +584,15 @@ void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XEven
 #endif
 
 void sl_property_notify (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
+
+	  PropertyNotify Events:
+
+	  The X server can report PropertyNotify events to clients wanting information about
+	  property changes for a specified window.
+	*/
+
 	if (event->xproperty.state == PropertyDelete) {
 		property_log("delete");
 		return;
@@ -653,6 +867,15 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 
 // empty mask events
 void sl_client_message (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
+
+	  ClientMessage Events:
+
+	  The X server generates ClientMessage events only when a client calls the function
+	  XSendEvent.
+	*/
+
 	if (event->xclient.message_type == display->atoms[net_wm_state]) {
 		if ((ulong)event->xclient.data.l[1] == display->atoms[net_wm_state_fullscreen] || (ulong)event->xclient.data.l[2] == display->atoms[net_wm_state_fullscreen]) {
 #ifdef D_debug
@@ -720,18 +943,74 @@ void sl_client_message (sl_display* display, XEvent* event) {
 }
 
 void sl_mapping_notify (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
+
+	  MappingNotify Events:
+
+	  The X server reports MappingNotify events to all clients. There is no mechanism to
+	  express disinterest in this event. The X server generates this event type whenever
+	  a client application successfully calls:
+
+	  • XSetModifierMapping to indicate which KeyCodes are to be used as modifiers
+	  • XChangeKeyboardMapping to change the keyboard mapping
+	  • XSetPointerMapping to set the pointer mapping
+	*/
+
 	XRefreshKeyboardMapping(&event->xmapping);
 	if (event->xmapping.request == MappingKeyboard) sl_grab_keys(display);
 }
 
-void sl_selection_clear (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {}
+void sl_selection_clear (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
 
-void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {}
+	  SelectionClear Events:
 
-void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {}
+	  The X server reports SelectionClear events to the client losing ownership of
+	  a selection. The X server generates this event type when another client asserts
+	  ownership of the selection by calling XSetSelectionOwner.
+	*/
+}
+
+void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
+
+	  SelectionRequest Events:
+
+	  The X server reports SelectionRequest events to the owner of a selection. The X
+	  server generates this event whenever a client requests a selection conversion by
+	  calling XConvertSelection for the owned selection.
+	*/
+}
+
+void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
+
+	  SelectionNotify Events:
+
+	  This event is generated by the X server in response to a ConvertSelection protocol
+	  request when there is no owner for the selection. When there is an owner, it should
+	  be generated by the owner of the selection by using XSendEvent. The owner of a
+	  selection should send this event to a requestor when a selection has been converted
+	  and stored as a property or when a selection conversion could not be performed
+	  (which is indicated by setting the property member to None).
+
+	  If None is specified as the property in the ConvertSelection protocol request,
+	  the owner should choose a property name, store the result as that property on
+	  the requestor window, and then send a SelectionNotify giving that actual property
+	  name.
+	*/
+}
 
 void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events:
+
+	  Input Focus Events:
+
 	  This section describes the processing that occurs for the input focus events FocusIn
 	  and FocusOut. The X server can report FocusIn or FocusOut events to clients
 	  wanting information about when the input focus changes. The keyboard is always
@@ -744,6 +1023,10 @@ void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XEvent* eve
 
 void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
 	/*
+	  Xlib - C Language X Interface: Chapter 10. Events:
+
+	  Input Focus Events:
+
 	  This section describes the processing that occurs for the input focus events FocusIn
 	  and FocusOut. The X server can report FocusIn or FocusOut events to clients
 	  wanting information about when the input focus changes. The keyboard is always
@@ -755,8 +1038,34 @@ void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XEvent* ev
 }
 
 // KeyPressMask
-// NOTE: XGrabKey(...) implies KeyPressMask and (possibly) KeyReleaseMask
 void sl_key_press (sl_display* display, XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
+
+	  Keyboard and Pointer Events:
+
+	  This section discusses the processing that occurs for the keyboard events
+	  KeyPress and KeyRelease and the pointer events ButtonPress, ButtonRelease, and
+	  MotionNotify. For information about the keyboard event-handling utilities, see
+	  chapter 11.
+
+	  The X server reports KeyPress or KeyRelease events to clients wanting information
+	  about keys that logically change state. Note that these events are generated for
+	  all keys, even those mapped to modifier bits. The X server reports ButtonPress
+	  or ButtonRelease events to clients wanting information about buttons that logically
+	  change state.
+
+	  The X server reports MotionNotify events to clients wanting information about
+	  when the pointer logically moves. The X server generates this event whenever
+	  the pointer is moved and the pointer motion begins and ends in the window. The
+	  granularity of MotionNotify events is not guaranteed, but a client that selects this
+	  event type is guaranteed to receive at least one event when the pointer moves and
+	  then rests.
+
+	  The generation of the logical changes lags the physical changes if device event
+	  processing is frozen.
+	*/
+
 	display->user_input_since_last_workspace_change = true;
 
 	if (parse_mask_long(event->xkey.state) == 0) { // {k}
@@ -1042,4 +1351,31 @@ void sl_key_press (sl_display* display, XEvent* event) {
 	assert_not_reached();
 }
 
-void sl_key_release (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {}
+void sl_key_release (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+	/*
+	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
+
+	  Keyboard and Pointer Events:
+
+	  This section discusses the processing that occurs for the keyboard events
+	  KeyPress and KeyRelease and the pointer events ButtonPress, ButtonRelease, and
+	  MotionNotify. For information about the keyboard event-handling utilities, see
+	  chapter 11.
+
+	  The X server reports KeyPress or KeyRelease events to clients wanting information
+	  about keys that logically change state. Note that these events are generated for
+	  all keys, even those mapped to modifier bits. The X server reports ButtonPress
+	  or ButtonRelease events to clients wanting information about buttons that logically
+	  change state.
+
+	  The X server reports MotionNotify events to clients wanting information about
+	  when the pointer logically moves. The X server generates this event whenever
+	  the pointer is moved and the pointer motion begins and ends in the window. The
+	  granularity of MotionNotify events is not guaranteed, but a client that selects this
+	  event type is guaranteed to receive at least one event when the pointer moves and
+	  then rests.
+
+	  The generation of the logical changes lags the physical changes if device event
+	  processing is frozen.
+	*/
+}
