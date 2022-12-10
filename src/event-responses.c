@@ -42,22 +42,16 @@
 #define window_handle_start \
 	for (size_t i = 0; i < display->windows->size; ++i) { \
 		sl_window* const window = sl_window_at(display, i); \
-\
-		if (window->x_window == event->xany.window) {
-#define window_handle_end \
-	return; \
-	} \
-	}
+		if (window->x_window == event->xany.window)
+
+#define window_handle_end }
 
 #define unmanaged_window_handle_start \
 	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) { \
 		sl_window* const unmanaged_windows = sl_window_at(display, i); \
-\
-		if (unmanaged_windows->x_window == event->xany.window) {
-#define unmanaged_window_handle_end \
-	return; \
-	} \
-	}
+		if (unmanaged_windows->x_window == event->xany.window)
+
+#define unmanaged_window_handle_end }
 
 static void button_press_or_release (sl_display* display, XEvent* event) {
 	display->user_input_since_last_workspace_change = true;
@@ -82,6 +76,8 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 			display->mouse.x = event->xbutton.x_root;
 			display->mouse.y = event->xbutton.y_root;
 		}
+
+		return;
 	}
 	window_handle_end
 }
@@ -177,7 +173,7 @@ void sl_enter_notify (sl_display* display, XEvent* event) {
 	if (event->xcrossing.mode != NotifyNormal) return;
 
 	window_handle_start {
-		if (window->mapped && window->workspace == display->current_workspace) sl_focus_window(display, i, CurrentTime);
+		if (window->mapped && window->workspace == display->current_workspace) return sl_focus_window(display, i, CurrentTime);
 	}
 	window_handle_end
 }
@@ -315,8 +311,10 @@ void sl_create_notify (sl_display* display, XEvent* event) {
 
 	if (event->xcreatewindow.window == display->root) return; // do nothing
 
-	window_handle_start {}
+	window_handle_start { return; }
 	window_handle_end
+
+	warn_log_va("create notify %lu", display->windows->size);
 
 	sl_vector_push(display->windows, &(sl_window) {.x_window = event->xcreatewindow.window});
 }
@@ -332,9 +330,7 @@ void sl_destroy_notify (sl_display* display, XEvent* event) {
 	  application destroys a window by calling XDestroyWindow or XDestroySubwindows.
 	*/
 
-	window_handle_start {
-		if (window->x_window == event->xdestroywindow.window) sl_window_erase(display, i, CurrentTime);
-	}
+	window_handle_start { return sl_window_erase(display, i, CurrentTime); }
 	window_handle_end
 }
 
@@ -393,7 +389,9 @@ void sl_unmap_notify (sl_display* display, XEvent* event) {
 		window->mapped = false;
 
 		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == i) display->focused_window_index = M_invalid_window_index;
-		if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) return sl_cycle_windows_down(display, CurrentTime);
+		if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) sl_cycle_windows_down(display, CurrentTime);
+
+		return;
 	}
 	window_handle_end
 }
@@ -416,11 +414,7 @@ void sl_circulate_request (sl_display* display, XEvent* event) {
 	window_handle_start {
 		if (!window->mapped || window->workspace != display->current_workspace) return;
 
-		if (event->xcirculaterequest.place == PlaceOnTop) {
-			sl_focus_and_raise_window(display, i, CurrentTime);
-
-			return;
-		}
+		if (event->xcirculaterequest.place == PlaceOnTop) return sl_focus_and_raise_window(display, i, CurrentTime);
 
 		warn_log("todo: implement PlaceOnBottom");
 	}
@@ -450,7 +444,7 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 
 	window_handle_start {
 		if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight) && ((ulong)event->xconfigurerequest.width >= display->dimensions.width || (ulong)event->xconfigurerequest.height >= display->dimensions.height)) {
-			window->fullscreen = true;
+			window->maximized = true;
 
 			return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
 		}
@@ -474,6 +468,8 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
 
 static void map_unstarted_window (sl_display* display, size_t index) {
+	warn_log_va("map unstarted window %lu", index);
+
 	sl_window* const window = sl_window_at(display, index);
 
 	window->started = true;
@@ -546,6 +542,9 @@ void sl_map_request (sl_display* display, XEvent* event) {
 			return map_unstarted_window(display, i);
 	}
 	window_handle_end
+
+	sl_vector_push(display->windows, &(sl_window) {.x_window = event->xcreatewindow.window});
+	map_unstarted_window(display, display->windows->size - 1);
 }
 
 void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {

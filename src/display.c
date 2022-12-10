@@ -638,6 +638,7 @@ void sl_maximize_raised_window (sl_display* display) {
 	raised_window->maximized = true;
 	if (raised_window->fullscreen) return; // do nothing
 
+	warn_log("aren't we supposed to exactly not do this?");
 	{
 		XWindowAttributes attributes;
 		XGetWindowAttributes(display->x_display, raised_window->x_window, &attributes);

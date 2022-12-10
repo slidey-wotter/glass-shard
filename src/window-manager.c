@@ -73,23 +73,22 @@ int main () {
 	}
 
 	// NOTE: we are sending each atom individually instead of 5 at a time for compatibility reasons
-	// sl_notify_supported_atom(display, net_wm_name);
-	// sl_notify_supported_atom(display, net_wm_icon_name);
-	// sl_notify_supported_atom(display, net_wm_desktop);
-	// sl_notify_supported_atom(display, net_wm_window_type);
-	// sl_notify_supported_atom(display, net_wm_state);
-	// sl_notify_supported_atom(display, net_wm_allowed_actions);
-	// sl_notify_supported_atom(display, net_wm_strut);
-	// sl_notify_supported_atom(display, net_wm_strut_partial);
-	// sl_notify_supported_atom(display, net_wm_icon_geometry);
-	// sl_notify_supported_atom(display, net_wm_icon);
-
-	// sl_notify_supported_atom(display, net_wm_pid);
-	// sl_notify_supported_atom(display, net_wm_handled_icons);
-	// sl_notify_supported_atom(display, net_wm_user_time);
-	// sl_notify_supported_atom(display, net_wm_user_time_window);
-	// sl_notify_supported_atom(display, net_wm_opaque_region);
-	// sl_notify_supported_atom(display, net_wm_bypass_compositor);
+	sl_notify_supported_atom(display, net_wm_name);
+	sl_notify_supported_atom(display, net_wm_icon_name);
+	sl_notify_supported_atom(display, net_wm_desktop);
+	sl_notify_supported_atom(display, net_wm_window_type);
+	sl_notify_supported_atom(display, net_wm_state);
+	sl_notify_supported_atom(display, net_wm_allowed_actions);
+	sl_notify_supported_atom(display, net_wm_strut);
+	sl_notify_supported_atom(display, net_wm_strut_partial);
+	sl_notify_supported_atom(display, net_wm_icon_geometry);
+	sl_notify_supported_atom(display, net_wm_icon);
+	sl_notify_supported_atom(display, net_wm_pid);
+	sl_notify_supported_atom(display, net_wm_handled_icons);
+	sl_notify_supported_atom(display, net_wm_user_time);
+	sl_notify_supported_atom(display, net_wm_user_time_window);
+	sl_notify_supported_atom(display, net_wm_opaque_region);
+	sl_notify_supported_atom(display, net_wm_bypass_compositor);
 
 	warn_log("todo: this should be where we create threads for every display and handle each individually");
 	for (XEvent event; !XNextEvent(display->x_display, &event);) {
