@@ -501,10 +501,7 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 
 		XGetWindowAttributes(display->x_display, window->x_window, &attributes);
 		if (attributes.x != 0 || attributes.y != 0 || attributes.width != 0 || attributes.height != 0) {
-			if (attributes.x != 0) window->saved_dimensions.x = attributes.x;
-			if (attributes.y != 0) window->saved_dimensions.y = attributes.y;
-			if (attributes.width != 0) window->saved_dimensions.width = attributes.width;
-			if (attributes.height != 0) window->saved_dimensions.height = attributes.height;
+			window->saved_dimensions = (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
 			sl_move_and_resize_window(display, window, window->saved_dimensions);
 		}
 	}
