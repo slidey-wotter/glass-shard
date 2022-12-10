@@ -42,26 +42,26 @@
 #define window_handle_start \
 	for (size_t i = 0; i < display->windows->size; ++i) { \
 		sl_window* const window = sl_window_at(display, i); \
-		if (window->x_window == event->xany.window)
+		if (window->x_window == event->window)
 
 #define window_handle_end }
 
 #define unmanaged_window_handle_start \
 	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) { \
 		sl_window* const unmanaged_windows = sl_window_at(display, i); \
-		if (unmanaged_windows->x_window == event->xany.window)
+		if (unmanaged_windows->x_window == event->window)
 
 #define unmanaged_window_handle_end }
 
-static void button_press_or_release (sl_display* display, XEvent* event) {
+static void button_press_or_release (sl_display* display, XButtonPressedEvent* event) {
 	display->user_input_since_last_workspace_change = true;
 
-	if (event->xbutton.window == display->root) {
-		if (parse_mask(event->xbutton.state) == 0 || parse_mask(event->xbutton.state) == (Mod4Mask) || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) sl_focus_raised_window(display, event->xbutton.time);
+	if (event->window == display->root) {
+		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask)) sl_focus_raised_window(display, event->time);
 
-		if (parse_mask(event->xbutton.state) == Mod4Mask || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) {
-			display->mouse.x = event->xbutton.x_root;
-			display->mouse.y = event->xbutton.y_root;
+		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
+			display->mouse.x = event->x_root;
+			display->mouse.y = event->y_root;
 
 			return;
 		}
@@ -70,11 +70,11 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 	window_handle_start {
 		if (!window->mapped || window->workspace != display->current_workspace) return;
 
-		if (parse_mask(event->xbutton.state) == 0 || parse_mask(event->xbutton.state) == (Mod4Mask) || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) sl_swap_window_with_raised_window(display, i, event->xbutton.time);
+		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask)) sl_swap_window_with_raised_window(display, i, event->time);
 
-		if (parse_mask(event->xbutton.state) == Mod4Mask || parse_mask(event->xbutton.state) == (Mod4Mask | ControlMask)) {
-			display->mouse.x = event->xbutton.x_root;
-			display->mouse.y = event->xbutton.y_root;
+		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
+			display->mouse.x = event->x_root;
+			display->mouse.y = event->y_root;
 		}
 
 		return;
@@ -82,7 +82,7 @@ static void button_press_or_release (sl_display* display, XEvent* event) {
 	window_handle_end
 }
 
-void sl_button_press (sl_display* display, XEvent* event) {
+void sl_button_press (sl_display* display, XButtonPressedEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 
@@ -116,7 +116,7 @@ void sl_button_press (sl_display* display, XEvent* event) {
 	return button_press_or_release(display, event);
 }
 
-void sl_button_release (sl_display* display, XEvent* event) {
+void sl_button_release (sl_display* display, XButtonPressedEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 
@@ -150,7 +150,7 @@ void sl_button_release (sl_display* display, XEvent* event) {
 	return button_press_or_release(display, event);
 }
 
-void sl_enter_notify (sl_display* display, XEvent* event) {
+void sl_enter_notify (sl_display* display, XEnterWindowEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window Entry/Exit Events:
 
@@ -170,7 +170,7 @@ void sl_enter_notify (sl_display* display, XEvent* event) {
 	  member is set to NotifyUngrab (see XGrabPointer).
 	*/
 
-	if (event->xcrossing.mode != NotifyNormal) return;
+	if (event->mode != NotifyNormal) return;
 
 	window_handle_start {
 		if (window->mapped && window->workspace == display->current_workspace) return sl_focus_window(display, i, CurrentTime);
@@ -178,7 +178,7 @@ void sl_enter_notify (sl_display* display, XEvent* event) {
 	window_handle_end
 }
 
-void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XLeaveWindowEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window Entry/Exit Events:
 
@@ -199,7 +199,7 @@ void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent*
 	*/
 }
 
-void sl_motion_notify (sl_display* display, XEvent* event) {
+void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 
@@ -238,26 +238,26 @@ void sl_motion_notify (sl_display* display, XEvent* event) {
 
 	if (raised_window->fullscreen || raised_window->maximized) return;
 
-	if (parse_mask(event->xmotion.state) == (Button1MotionMask | Mod4Mask)) {
-		raised_window->saved_dimensions.x += event->xmotion.x_root - display->mouse.x;
-		raised_window->saved_dimensions.y += event->xmotion.y_root - display->mouse.y;
-		display->mouse.x = event->xmotion.x_root;
-		display->mouse.y = event->xmotion.y_root;
+	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask)) {
+		raised_window->saved_dimensions.x += event->x_root - display->mouse.x;
+		raised_window->saved_dimensions.y += event->y_root - display->mouse.y;
+		display->mouse.x = event->x_root;
+		display->mouse.y = event->y_root;
 
 		return sl_move_window(display, raised_window, raised_window->saved_dimensions.x, raised_window->saved_dimensions.y);
 	}
 
-	if (parse_mask(event->xmotion.state) == (Button1MotionMask | Mod4Mask | ControlMask)) {
-		raised_window->saved_dimensions.width += event->xmotion.x_root - display->mouse.x;
-		raised_window->saved_dimensions.height += event->xmotion.y_root - display->mouse.y;
-		display->mouse.x = event->xmotion.x_root;
-		display->mouse.y = event->xmotion.y_root;
+	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask | ControlMask)) {
+		raised_window->saved_dimensions.width += event->x_root - display->mouse.x;
+		raised_window->saved_dimensions.height += event->y_root - display->mouse.y;
+		display->mouse.x = event->x_root;
+		display->mouse.y = event->y_root;
 
 		return sl_resize_window(display, raised_window, raised_window->saved_dimensions.width, raised_window->saved_dimensions.height);
 	}
 }
 
-void sl_circulate_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_circulate_notify (M_maybe_unused sl_display* display, M_maybe_unused XCirculateEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -271,7 +271,7 @@ void sl_circulate_notify (M_maybe_unused sl_display* display, M_maybe_unused XEv
 	*/
 }
 
-void sl_configure_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_configure_notify (M_maybe_unused sl_display* display, M_maybe_unused XConfigureEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -298,7 +298,7 @@ void sl_configure_notify (M_maybe_unused sl_display* display, M_maybe_unused XEv
 	*/
 }
 
-void sl_create_notify (sl_display* display, XEvent* event) {
+void sl_create_notify (sl_display* display, XCreateWindowEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -309,17 +309,13 @@ void sl_create_notify (sl_display* display, XEvent* event) {
 	  application creates a window by calling XCreateWindow or XCreateSimpleWindow.
 	*/
 
-	if (event->xcreatewindow.window == display->root) return; // do nothing
-
 	window_handle_start { return; }
 	window_handle_end
 
-	warn_log_va("create notify %lu", display->windows->size);
-
-	sl_vector_push(display->windows, &(sl_window) {.x_window = event->xcreatewindow.window});
+	sl_vector_push(display->windows, &(sl_window) {.x_window = event->window});
 }
 
-void sl_destroy_notify (sl_display* display, XEvent* event) {
+void sl_destroy_notify (sl_display* display, XDestroyWindowEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -334,7 +330,7 @@ void sl_destroy_notify (sl_display* display, XEvent* event) {
 	window_handle_end
 }
 
-void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XGravityEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -348,7 +344,7 @@ void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XEven
 	*/
 }
 
-void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XMapEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -362,7 +358,7 @@ void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* e
 	*/
 }
 
-void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XReparentEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -374,7 +370,7 @@ void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XEve
 	*/
 }
 
-void sl_unmap_notify (sl_display* display, XEvent* event) {
+void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -396,7 +392,7 @@ void sl_unmap_notify (sl_display* display, XEvent* event) {
 	window_handle_end
 }
 
-void sl_circulate_request (sl_display* display, XEvent* event) {
+void sl_circulate_request (sl_display* display, XCirculateRequestEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
 
@@ -414,19 +410,21 @@ void sl_circulate_request (sl_display* display, XEvent* event) {
 	window_handle_start {
 		if (!window->mapped || window->workspace != display->current_workspace) return;
 
-		if (event->xcirculaterequest.place == PlaceOnTop) return sl_focus_and_raise_window(display, i, CurrentTime);
+		if (event->place == PlaceOnTop) return sl_focus_and_raise_window(display, i, CurrentTime);
 
 		warn_log("todo: implement PlaceOnBottom");
 	}
 	window_handle_end
 
 	unmanaged_window_handle_start {
-		if (event->xcirculaterequest.place == PlaceOnTop) return sl_focus_and_raise_unmanaged_window(display, i, CurrentTime);
+		if (event->place == PlaceOnTop) return sl_focus_and_raise_unmanaged_window(display, i, CurrentTime);
+
+		warn_log("todo: implement PlaceOnBottom");
 	}
 	unmanaged_window_handle_end
 }
 
-void sl_configure_request (sl_display* display, XEvent* event) {
+void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
 
@@ -443,24 +441,25 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 	*/
 
 	window_handle_start {
-		if (event->xconfigurerequest.value_mask & (CWWidth | CWHeight) && ((ulong)event->xconfigurerequest.width >= display->dimensions.width || (ulong)event->xconfigurerequest.height >= display->dimensions.height)) {
-			window->maximized = true;
+		/*
+		if (event->value_mask & (CWWidth | CWHeight) && ((ulong)event->width >= display->dimensions.width || (ulong)event->height >= display->dimensions.height)) {
+		  window->maximized = true;
 
-			return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
+		  return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
+		}
+		*/
+
+		if (window->maximized) return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
+
+		if (event->value_mask & (CWX | CWY | CWWidth | CWHeight)) {
+			if (event->value_mask & CWX) window->saved_dimensions.x = event->x;
+			if (event->value_mask & CWY) window->saved_dimensions.y = event->y;
+			if (event->value_mask & CWWidth) window->saved_dimensions.width = event->width;
+			if (event->value_mask & CWHeight) window->saved_dimensions.height = event->height;
+			return sl_configure_window(display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight), (XWindowChanges) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height});
 		}
 
-		if (window->maximized) {
-			return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
-		}
-
-		if (event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight)) {
-			window->fullscreen = false;
-			if (event->xconfigurerequest.value_mask & CWX) window->saved_dimensions.x = event->xconfigurerequest.x;
-			if (event->xconfigurerequest.value_mask & CWY) window->saved_dimensions.y = event->xconfigurerequest.y;
-			if (event->xconfigurerequest.value_mask & CWWidth) window->saved_dimensions.width = event->xconfigurerequest.width;
-			if (event->xconfigurerequest.value_mask & CWHeight) window->saved_dimensions.height = event->xconfigurerequest.height;
-			return sl_configure_window(display, window, event->xconfigurerequest.value_mask & (CWX | CWY | CWWidth | CWHeight), (XWindowChanges) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height});
-		}
+		return;
 	}
 	window_handle_end
 }
@@ -468,8 +467,6 @@ void sl_configure_request (sl_display* display, XEvent* event) {
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
 
 static void map_unstarted_window (sl_display* display, size_t index) {
-	warn_log_va("map unstarted window %lu", index);
-
 	sl_window* const window = sl_window_at(display, index);
 
 	window->started = true;
@@ -500,10 +497,11 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 		XWindowAttributes attributes;
 
 		XGetWindowAttributes(display->x_display, window->x_window, &attributes);
-		if (attributes.x != 0 || attributes.y != 0 || attributes.width != 0 || attributes.height != 0) {
-			window->saved_dimensions = (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
-			sl_move_and_resize_window(display, window, window->saved_dimensions);
-		}
+		if (attributes.x != 0) window->saved_dimensions.x = attributes.x;
+		if (attributes.y != 0) window->saved_dimensions.y = attributes.y;
+		if (attributes.width != 0) window->saved_dimensions.width = attributes.width;
+		if (attributes.height != 0) window->saved_dimensions.height = attributes.height;
+		sl_move_and_resize_window(display, window, window->saved_dimensions);
 	}
 
 	XSelectInput(display->x_display, window->x_window, EnterWindowMask | LeaveWindowMask | FocusChangeMask | PropertyChangeMask | ResizeRedirectMask | StructureNotifyMask);
@@ -518,7 +516,7 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 	sl_focus_and_raise_window(display, index, CurrentTime);
 }
 
-void sl_map_request (sl_display* display, XEvent* event) {
+void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
 
@@ -539,12 +537,9 @@ void sl_map_request (sl_display* display, XEvent* event) {
 			return map_unstarted_window(display, i);
 	}
 	window_handle_end
-
-	sl_vector_push(display->windows, &(sl_window) {.x_window = event->xcreatewindow.window});
-	map_unstarted_window(display, display->windows->size - 1);
 }
 
-void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XResizeRequestEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
 
@@ -563,7 +558,7 @@ void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XEven
 #	define property_log(M_name)
 #endif
 
-void sl_property_notify (sl_display* display, XEvent* event) {
+void sl_property_notify (sl_display* display, XPropertyEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
 
@@ -601,50 +596,48 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 	  XDeleteProperty or, if the delete argument is True, XGetWindowProperty.
 	*/
 
-	if (event->xproperty.window == display->root) return; // do nothing
-
-	if (event->xproperty.state == PropertyDelete) {
+	if (event->state == PropertyDelete) {
 		property_log("PropertyDelete");
 		return;
 	}
 
 	window_handle_start {
-		if (event->xproperty.atom == XA_WM_NAME) return sl_set_window_name(window, display);
+		if (event->atom == XA_WM_NAME) return sl_set_window_name(window, display);
 
-		if (event->xproperty.atom == XA_WM_ICON_NAME) return sl_set_window_icon_name(window, display);
+		if (event->atom == XA_WM_ICON_NAME) return sl_set_window_icon_name(window, display);
 
-		if (event->xproperty.atom == XA_WM_NORMAL_HINTS) return sl_set_window_normal_hints(window, display);
+		if (event->atom == XA_WM_NORMAL_HINTS) return sl_set_window_normal_hints(window, display);
 
-		if (event->xproperty.atom == XA_WM_HINTS) return sl_set_window_hints(window, display);
+		if (event->atom == XA_WM_HINTS) return sl_set_window_hints(window, display);
 
-		if (event->xproperty.atom == XA_WM_CLASS) return sl_set_window_class(window, display);
+		if (event->atom == XA_WM_CLASS) return sl_set_window_class(window, display);
 
-		if (event->xproperty.atom == XA_WM_TRANSIENT_FOR) return sl_set_window_transient_for(window, display);
+		if (event->atom == XA_WM_TRANSIENT_FOR) return sl_set_window_transient_for(window, display);
 
-		if (event->xproperty.atom == display->atoms[wm_protocols]) return sl_set_window_protocols(window, display);
+		if (event->atom == display->atoms[wm_protocols]) return sl_set_window_protocols(window, display);
 
-		if (event->xproperty.atom == display->atoms[wm_colormap_windows]) return sl_set_window_colormap_windows(window, display);
+		if (event->atom == display->atoms[wm_colormap_windows]) return sl_set_window_colormap_windows(window, display);
 
-		if (event->xproperty.atom == XA_WM_CLIENT_MACHINE) return sl_set_window_client_machine(window, display);
+		if (event->atom == XA_WM_CLIENT_MACHINE) return sl_set_window_client_machine(window, display);
 
 		// start of extended window manager hints:
 
-		else if (event->xproperty.atom == display->atoms[net_wm_name]) {
+		else if (event->atom == display->atoms[net_wm_name]) {
 			property_log("_NET_WM_NAME");
 			/* The Client SHOULD set this to the title of the window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_NAME. */
-		} else if (event->xproperty.atom == display->atoms[net_wm_icon_name]) {
+		} else if (event->atom == display->atoms[net_wm_icon_name]) {
 			property_log("_NET_WM_ICON_NAME");
 			/* The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_ICON_NAME. */
-		} else if (event->xproperty.atom == display->atoms[net_wm_desktop]) {
+		} else if (event->atom == display->atoms[net_wm_desktop]) {
 			property_log("_NET_WM_DESKTOP");
 			/* Cardinal to determine the desktop the window is in (or wants to be) starting with 0 for the first desktop. A Client MAY choose not to set this property, in which case the Window Manager SHOULD place it as it wishes. 0xFFFFFFFF indicates that the window SHOULD appear on all desktops. */
-		} else if (event->xproperty.atom == display->atoms[net_wm_window_type]) {
+		} else if (event->atom == display->atoms[net_wm_window_type]) {
 			property_log("_NET_WM_WINDOW_TYPE");
 			/*
 			  This SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to allow for extension of the list of types whilst
 			  providing default behavior for Window Managers that do not recognize the extensions.
 			*/
-		} else if (event->xproperty.atom == display->atoms[net_wm_state]) {
+		} else if (event->atom == display->atoms[net_wm_state]) {
 			property_log("_NET_WM_STATE");
 			/* A list of hints describing the window state. Atoms present in the list MUST be considered set, atoms not present in the list MUST be considered not set. The Window Manager SHOULD honor _NET_WM_STATE whenever a withdrawn window requests to be mapped. A Client wishing to change the state of a window MUST send a _NET_WM_STATE client message to the display->root window (see below). The Window Manager MUST keep this property updated to reflect the current state of the window. */
 
@@ -653,7 +646,7 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 			uchar* p = NULL;
 			Atom da = None, atom = None;
 
-			XGetWindowProperty(display->x_display, event->xproperty.window, display->atoms[net_wm_state], 0, sizeof(Atom), false, XA_ATOM, &da, &di, &dl, &dl, &p);
+			XGetWindowProperty(display->x_display, event->window, display->atoms[net_wm_state], 0, sizeof(Atom), false, XA_ATOM, &da, &di, &dl, &dl, &p);
 			if (!p) return;
 			atom = *(Atom*)p;
 			XFree(p);
@@ -712,29 +705,29 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 				// _NET_WM_STATE_FOCUSED indicates whether the window's decorations are drawn in an active state. Clients MUST regard it as a read-only hint. It cannot be set at map time or changed via a _NET_WM_STATE client message. The window given by _NET_ACTIVE_WINDOW will usually have this hint, but at times other windows may as well, if they have a strong association with the active window and will be considered as a unit with it by the user. Clients that modify the appearance of internal
 				// elements when a toplevel has keyboard focus SHOULD check for the availability of this state in _NET_SUPPORTED and, if it is available, use it in preference to tracking focus via FocusIn events. By doing so they will match the window decorations and accurately reflect the intentions of the Window Manager.
 			}
-		} else if (event->xproperty.atom == display->atoms[net_wm_strut]) {
+		} else if (event->atom == display->atoms[net_wm_strut]) {
 			property_log("_NET_WM_STRUT");
 			// This property is equivalent to a _NET_WM_STRUT_PARTIAL property where all start values are 0 and all end values are the height or width of the logical screen. _NET_WM_STRUT_PARTIAL was introduced later than _NET_WM_STRUT, however, so clients MAY set this property in addition to _NET_WM_STRUT_PARTIAL to ensure backward compatibility with Window Managers supporting older versions of the Specification.
-		} else if (event->xproperty.atom == display->atoms[net_wm_strut_partial]) {
+		} else if (event->atom == display->atoms[net_wm_strut_partial]) {
 			property_log("_NET_WM_STRUT_PARTIAL");
 			// This property MUST be set by the Client if the window is to reserve space at the edge of the screen. The property contains 4 cardinals specifying the width of the reserved area at each border of the screen, and an additional 8 cardinals specifying the beginning and end corresponding to each of the four struts. The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x. All coordinates
 			// are display->root window coordinates. The client MAY change this property at any time, therefore the Window Manager MUST watch for property notify events if the Window Manager uses this property to assign special semantics to the window.
-		} else if (event->xproperty.atom == display->atoms[net_wm_icon_geometry]) {
+		} else if (event->atom == display->atoms[net_wm_icon_geometry]) {
 			property_log("_NET_WM_ICON_GEOMETRY");
 			// This optional property MAY be set by stand alone tools like a taskbar or an iconbox. It specifies the geometry of a possible icon in case the window is iconified.
-		} else if (event->xproperty.atom == display->atoms[net_wm_icon]) {
+		} else if (event->atom == display->atoms[net_wm_icon]) {
 			property_log("_NET_WM_ICON");
 			// This is an array of possible icons for the client. This specification does not stipulate what size these icons should be, but individual desktop environments or toolkits may do so. The Window Manager MAY scale any of these icons to an appropriate size.
-		} else if (event->xproperty.atom == display->atoms[net_wm_pid]) {
+		} else if (event->atom == display->atoms[net_wm_pid]) {
 			property_log("_NET_WM_PID");
 			// If set, this property MUST contain the process ID of the client owning this window. This MAY be used by the Window Manager to kill windows which do not respond to the _NET_WM_PING protocol.
-		} else if (event->xproperty.atom == display->atoms[net_wm_allowed_actions]) {
+		} else if (event->atom == display->atoms[net_wm_allowed_actions]) {
 			property_log("_NET_WM_ALLOWED_ACTIONS");
 			// A list of atoms indicating user operations that the Window Manager supports for this window. Atoms present in the list indicate allowed actions, atoms not present in the list indicate actions that are not supported for this window. The Window Manager MUST keep this property updated to reflect the actions which are currently "active" or "sensitive" for a window. Taskbars, Pagers, and other tools use _NET_WM_ALLOWED_ACTIONS to decide which actions should be made available to the user.
-		} else if (event->xproperty.atom == display->atoms[net_wm_handled_icons]) {
+		} else if (event->atom == display->atoms[net_wm_handled_icons]) {
 			property_log("_NET_WM_HANDLED_ICONS");
 			// This property can be set by a Pager on one of its own toplevel windows to indicate that the Window Manager need not provide icons for iconified windows, for example if it is a taskbar and provides buttons for iconified windows.
-		} else if (event->xproperty.atom == display->atoms[net_wm_user_time]) {
+		} else if (event->atom == display->atoms[net_wm_user_time]) {
 			property_log("_NET_WM_USER_TIME");
 			// This property contains the XServer time at which last user activity in this window took place.
 
@@ -745,18 +738,18 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 			// If the client has the active window, it should also update this property on the window whenever there's user activity.
 
 			// Rationale: This property allows a Window Manager to alter the focus, stacking, and/or placement behavior of windows when they are mapped depending on whether the new window was created by a user action or is a "pop-up" window activated by a timer or some other event->
-		} else if (event->xproperty.atom == display->atoms[net_wm_user_time_window]) {
+		} else if (event->atom == display->atoms[net_wm_user_time_window]) {
 			property_log("_NET_WM_USER_TIME_WINDOW");
 			// This property contains the XID of a window on which the client sets the _NET_WM_USER_TIME property. Clients should check whether the window manager supports _NET_WM_USER_TIME_WINDOW and fall back to setting the _NET_WM_USER_TIME property on the toplevel window if it doesn't.
 
 			// Rationale: Storing the frequently changing _NET_WM_USER_TIME property on the toplevel window itx_window causes every application that is interested in any of the properties of that window to be woken up on every keypress, which is particularly bad for laptops running on battery power.
-		} else if (event->xproperty.atom == display->atoms[net_wm_opaque_region]) {
+		} else if (event->atom == display->atoms[net_wm_opaque_region]) {
 			property_log("_NET_WM_OPAQUE_REGION");
 			// The Client MAY set this property to a list of 4-tuples [x, y, width, height], each representing a rectangle in window coordinates where the pixels of the window's contents have a fully opaque alpha value. If the window is drawn by the compositor without adding any transparency, then such a rectangle will occlude whatever is drawn behind it. When the window has an RGB visual rather than an ARGB visual, this property is not typically useful, since the effective opaque region of a window
 			// is exactly the bounding region of the window as set via the shape extension. For windows with an ARGB visual and also a bounding region set via the shape extension, the effective opaque region is given by the intersection of the region set by this property and the bounding region set via the shape extension. The compositing manager MAY ignore this hint.
 
 			// Rationale: This gives the compositing manager more room for optimizations. For example, it can avoid drawing occluded portions behind the window.
-		} else if (event->xproperty.atom == display->atoms[net_wm_bypass_compositor]) {
+		} else if (event->atom == display->atoms[net_wm_bypass_compositor]) {
 			property_log("_NET_WM_BYPASS_COMPOSITOR");
 			// The Client MAY set this property to hint the compositor that the window would benefit from running uncomposited (i.e not redirected offscreen) or that the window might be hurt from being uncomposited. A value of 0 indicates no preference. A value of 1 hints the compositor to disabling compositing of this window. A value of 2 hints the compositor to not disabling compositing of this window. All other values are reserved and should be treated the same as a value of 0. The compositing
 			// manager MAY bypass compositing for both fullscreen and non-fullscreen windows if bypassing is requested, but MUST NOT bypass if it would cause differences from the composited appearance.
@@ -768,7 +761,7 @@ void sl_property_notify (sl_display* display, XEvent* event) {
 }
 
 // empty mask events
-void sl_client_message (sl_display* display, XEvent* event) {
+void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClientMessageEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
 
@@ -778,68 +771,72 @@ void sl_client_message (sl_display* display, XEvent* event) {
 	  XSendEvent.
 	*/
 
+	/*
+
 	window_handle_start {
-		if (event->xclient.message_type == display->atoms[net_wm_state]) {
-			if ((ulong)event->xclient.data.l[1] == display->atoms[net_wm_state_fullscreen] || (ulong)event->xclient.data.l[2] == display->atoms[net_wm_state_fullscreen]) {
-				XConfigureEvent configure_event;
+	  if (event->message_type == display->atoms[net_wm_state]) {
+	    if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen] || (ulong)event->data.l[2] == display->atoms[net_wm_state_fullscreen]) {
+	      XConfigureEvent configure_event;
 
-				if (!window->fullscreen && (event->xclient.data.l[0] == 1 || event->xclient.data.l[0] == 2)) {
-					window->fullscreen = true;
-					XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)&display->atoms[net_wm_state_fullscreen], true);
-					{
-						XWindowAttributes attributes;
-						XGetWindowAttributes(display->x_display, window->x_window, &attributes);
-						window->saved_dimensions.x = attributes.x;
-						window->saved_dimensions.y = attributes.y;
-						window->saved_dimensions.width = attributes.width;
-						window->saved_dimensions.height = attributes.height;
-					}
-					sl_move_and_resize_window(display, window, window->saved_dimensions);
-					XRaiseWindow(display->x_display, window->x_window);
+	      if (!window->fullscreen && (event->data.l[0] == 1 || event->data.l[0] == 2)) {
+	        window->fullscreen = true;
+	        XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)&display->atoms[net_wm_state_fullscreen], true);
+	        {
+	          XWindowAttributes attributes;
+	          XGetWindowAttributes(display->x_display, window->x_window, &attributes);
+	          window->saved_dimensions.x = attributes.x;
+	          window->saved_dimensions.y = attributes.y;
+	          window->saved_dimensions.width = attributes.width;
+	          window->saved_dimensions.height = attributes.height;
+	        }
+	        sl_move_and_resize_window(display, window, window->saved_dimensions);
+	        XRaiseWindow(display->x_display, window->x_window);
 
-					configure_event.type = ConfigureNotify;
-					configure_event.display = display->x_display;
-					configure_event.event = window->x_window;
-					configure_event.window = window->x_window;
-					configure_event.x = display->dimensions.x;
-					configure_event.y = display->dimensions.y;
-					configure_event.width = display->dimensions.width;
-					configure_event.height = display->dimensions.height;
-					configure_event.override_redirect = false;
-					sl_window* const raised_window = sl_raised_window(display);
-					XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
-				} else if (window->fullscreen && (event->xclient.data.l[0] == 0 || event->xclient.data.l[0] == 2)) {
-					window->fullscreen = false;
-					XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)&display->atoms[net_wm_state_fullscreen], false);
-					XMoveResizeWindow(display->x_display, window->x_window, window->saved_dimensions.x, window->saved_dimensions.y, window->saved_dimensions.width, window->saved_dimensions.height);
+	        configure_event.type = ConfigureNotify;
+	        configure_event.display = display->x_display;
+	        configure_event.event = window->x_window;
+	        configure_event.window = window->x_window;
+	        configure_event.x = display->dimensions.x;
+	        configure_event.y = display->dimensions.y;
+	        configure_event.width = display->dimensions.width;
+	        configure_event.height = display->dimensions.height;
+	        configure_event.override_redirect = false;
+	        sl_window* const raised_window = sl_raised_window(display);
+	        XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+	      } else if (window->fullscreen && (event->data.l[0] == 0 || event->data.l[0] == 2)) {
+	        window->fullscreen = false;
+	        XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)&display->atoms[net_wm_state_fullscreen], false);
+	        XMoveResizeWindow(display->x_display, window->x_window, window->saved_dimensions.x, window->saved_dimensions.y, window->saved_dimensions.width, window->saved_dimensions.height);
 
-					sl_window* const raised_window = sl_raised_window(display);
-					configure_event.type = ConfigureNotify;
-					configure_event.display = display->x_display;
-					configure_event.event = raised_window->x_window;
-					configure_event.window = raised_window->x_window;
-					configure_event.x = raised_window->saved_dimensions.x;
-					configure_event.y = raised_window->saved_dimensions.y;
-					configure_event.width = raised_window->saved_dimensions.width;
-					configure_event.height = raised_window->saved_dimensions.height;
-					configure_event.override_redirect = false;
-					XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
-				}
+	        sl_window* const raised_window = sl_raised_window(display);
+	        configure_event.type = ConfigureNotify;
+	        configure_event.display = display->x_display;
+	        configure_event.event = raised_window->x_window;
+	        configure_event.window = raised_window->x_window;
+	        configure_event.x = raised_window->saved_dimensions.x;
+	        configure_event.y = raised_window->saved_dimensions.y;
+	        configure_event.width = raised_window->saved_dimensions.width;
+	        configure_event.height = raised_window->saved_dimensions.height;
+	        configure_event.override_redirect = false;
+	        XSendEvent(display->x_display, raised_window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+	      }
 
-				return;
-			}
+	      return;
+	    }
 
-			if (event->xclient.message_type == display->atoms[net_active_window]) {
-				return;
-			}
+	    if (event->message_type == display->atoms[net_active_window]) {
+	      return;
+	    }
 
-			return;
-		}
+	    return;
+	  }
 	}
 	window_handle_end
+
+	*/
 }
 
-void sl_mapping_notify (sl_display* display, XEvent* event) {
+void sl_mapping_notify (sl_display* display, XMappingEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Window State Change Events:
 
@@ -854,11 +851,11 @@ void sl_mapping_notify (sl_display* display, XEvent* event) {
 	  • XSetPointerMapping to set the pointer mapping
 	*/
 
-	XRefreshKeyboardMapping(&event->xmapping);
-	if (event->xmapping.request == MappingKeyboard) sl_grab_keys(display);
+	XRefreshKeyboardMapping(event);
+	if (event->request == MappingKeyboard) sl_grab_keys(display);
 }
 
-void sl_selection_clear (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_selection_clear (M_maybe_unused sl_display* display, M_maybe_unused XSelectionClearEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
 
@@ -870,7 +867,7 @@ void sl_selection_clear (M_maybe_unused sl_display* display, M_maybe_unused XEve
 	*/
 }
 
-void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XSelectionRequestEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
 
@@ -882,7 +879,7 @@ void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XE
 	*/
 }
 
-void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XSelectionEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Client Communication Events:
 
@@ -902,7 +899,7 @@ void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XEv
 	*/
 }
 
-void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XFocusInEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events:
 
@@ -918,7 +915,7 @@ void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XEvent* eve
 	*/
 }
 
-void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XFocusOutEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events:
 
@@ -935,7 +932,7 @@ void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XEvent* ev
 }
 
 // KeyPressMask
-void sl_key_press (sl_display* display, XEvent* event) {
+void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 
@@ -965,8 +962,8 @@ void sl_key_press (sl_display* display, XEvent* event) {
 
 	display->user_input_since_last_workspace_change = true;
 
-	if (parse_mask_long(event->xkey.state) == 0) { // {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == 0) { // {k}
+		switch (XLookupKeysym(event, 0)) {
 		// desktop environment behavior
 		case XF86XK_AudioLowerVolume: { // decrease volume
 			char* const args[] = {"amixer", "-q", "sset", "Master", "5%-", 0};
@@ -1016,8 +1013,8 @@ void sl_key_press (sl_display* display, XEvent* event) {
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == ShiftMask) { // shift + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == ShiftMask) { // shift + {k}
+		switch (XLookupKeysym(event, 0)) {
 		// volume manipulation
 		case XF86XK_AudioLowerVolume: { // decrease volume (a little)
 			char* const args[] = {"amixer", "-q", "sset", "Master", "1%-", 0};
@@ -1042,8 +1039,8 @@ void sl_key_press (sl_display* display, XEvent* event) {
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == ControlMask) { // control + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == ControlMask) { // control + {k}
+		switch (XLookupKeysym(event, 0)) {
 		// volume manipulation
 		case XF86XK_AudioLowerVolume: { // decrease volume (a lot)
 			char* const args[] = {"amixer", "-q", "sset", "Master", "10%-", 0};
@@ -1068,8 +1065,8 @@ void sl_key_press (sl_display* display, XEvent* event) {
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == Mod4Mask) { // super + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == Mod4Mask) { // super + {k}
+		switch (XLookupKeysym(event, 0)) {
 			// meta
 		case XK_w: // logout
 			if (window_manager()->logout) {
@@ -1079,17 +1076,17 @@ void sl_key_press (sl_display* display, XEvent* event) {
 
 			window_manager()->logout = true;
 
-			return sl_delete_all_windows(display, event->xkey.time);
+			return sl_delete_all_windows(display, event->time);
 
 		// window manipulation
 		case XK_m: // maximize
 			return sl_maximize_raised_window(display);
 
 		case XK_c: // close
-			return sl_close_raised_window(display, event->xkey.time);
+			return sl_close_raised_window(display, event->time);
 
 		case XK_Tab: // cycle the windows
-			return sl_cycle_windows_up(display, event->xkey.time);
+			return sl_cycle_windows_up(display, event->time);
 
 		// program execution shortcuts
 		case XK_t: {
@@ -1115,71 +1112,71 @@ void sl_key_press (sl_display* display, XEvent* event) {
 
 		// workspace manipulation
 		case XK_Right: // switch to workspace to the right
-			return sl_next_workspace(display, event->xkey.time);
+			return sl_next_workspace(display, event->time);
 
 		case XK_Left: // switch to workspace to the left
-			return sl_previous_workspace(display, event->xkey.time);
+			return sl_previous_workspace(display, event->time);
 
 		case XK_0: // switch to workspace 10
-			return sl_switch_to_workspace(display, 9, event->xkey.time);
+			return sl_switch_to_workspace(display, 9, event->time);
 
 		case XK_1: // switch to workspace 1
-			return sl_switch_to_workspace(display, 0, event->xkey.time);
+			return sl_switch_to_workspace(display, 0, event->time);
 
 		case XK_2: // switch to workspace 2
-			return sl_switch_to_workspace(display, 1, event->xkey.time);
+			return sl_switch_to_workspace(display, 1, event->time);
 
 		case XK_3: // switch to workspace 3
-			return sl_switch_to_workspace(display, 2, event->xkey.time);
+			return sl_switch_to_workspace(display, 2, event->time);
 
 		case XK_4: // switch to workspace 4
-			return sl_switch_to_workspace(display, 3, event->xkey.time);
+			return sl_switch_to_workspace(display, 3, event->time);
 
 		case XK_5: // switch to workspace 5
-			return sl_switch_to_workspace(display, 4, event->xkey.time);
+			return sl_switch_to_workspace(display, 4, event->time);
 
 		case XK_6: // switch to workspace 6
-			return sl_switch_to_workspace(display, 5, event->xkey.time);
+			return sl_switch_to_workspace(display, 5, event->time);
 
 		case XK_7: // switch to workspace 7
-			return sl_switch_to_workspace(display, 6, event->xkey.time);
+			return sl_switch_to_workspace(display, 6, event->time);
 
 		case XK_8: // switch to workspace 8
-			return sl_switch_to_workspace(display, 7, event->xkey.time);
+			return sl_switch_to_workspace(display, 7, event->time);
 
 		case XK_9: // switch to workspace 9
-			return sl_switch_to_workspace(display, 8, event->xkey.time);
+			return sl_switch_to_workspace(display, 8, event->time);
 
 		case XK_KP_Add: // add a workspace
 			return sl_push_workspace(display);
 
 		case XK_KP_Subtract: // remove the last workspace
-			return sl_pop_workspace(display, event->xkey.time);
+			return sl_pop_workspace(display, event->time);
 
 		default: assert_not_reached(); return;
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == Mod1Mask) { // alt + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == Mod1Mask) { // alt + {k}
+		switch (XLookupKeysym(event, 0)) {
 		case XK_Tab: // cycle the windows
-			return sl_cycle_windows_up(display, event->xkey.time);
+			return sl_cycle_windows_up(display, event->time);
 
 		default: assert_not_reached();
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == (ShiftMask | Mod4Mask)) { // shift + super + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == (ShiftMask | Mod4Mask)) { // shift + super + {k}
+		switch (XLookupKeysym(event, 0)) {
 		case XK_Tab: // cycle the windows (reverse)
-			return sl_cycle_windows_down(display, event->xkey.time);
+			return sl_cycle_windows_down(display, event->time);
 
 		default: assert_not_reached();
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == (Mod4Mask | ControlMask)) { // control + super + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == (Mod4Mask | ControlMask)) { // control + super + {k}
+		switch (XLookupKeysym(event, 0)) {
 		// volume manipulation
 		case XK_0: { // set volume to 100% (not 0%)
 			char* const args[] = {"amixer", "-q", "sset", "Master", "100%", 0};
@@ -1228,18 +1225,18 @@ void sl_key_press (sl_display* display, XEvent* event) {
 
 		// workspace manipulation
 		case XK_Right: // switch to workspace to the right while carrying the top window
-			return sl_next_workspace_with_raised_window(display, event->xkey.time);
+			return sl_next_workspace_with_raised_window(display, event->time);
 		case XK_Left: // switch to workspace to the left while carrying the top window
-			return sl_previous_workspace_with_raised_window(display, event->xkey.time);
+			return sl_previous_workspace_with_raised_window(display, event->time);
 
 		default: assert_not_reached();
 		}
 	}
 
-	if (parse_mask_long(event->xkey.state) == (ShiftMask | Mod1Mask)) { // shift + alt + {k}
-		switch (XLookupKeysym(&event->xkey, 0)) {
+	if (parse_mask_long(event->state) == (ShiftMask | Mod1Mask)) { // shift + alt + {k}
+		switch (XLookupKeysym(event, 0)) {
 		case XK_Tab: // cycle the windows (reverse)
-			return sl_cycle_windows_down(display, event->xkey.time);
+			return sl_cycle_windows_down(display, event->time);
 
 		default: assert_not_reached();
 		}
@@ -1248,7 +1245,7 @@ void sl_key_press (sl_display* display, XEvent* event) {
 	assert_not_reached();
 }
 
-void sl_key_release (M_maybe_unused sl_display* display, M_maybe_unused XEvent* event) {
+void sl_key_release (M_maybe_unused sl_display* display, M_maybe_unused XKeyReleasedEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 

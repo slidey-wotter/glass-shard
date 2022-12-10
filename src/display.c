@@ -251,7 +251,10 @@ static void cycle_workspace_down (sl_display* display) {
 \
 			sl_window* const window = sl_window_at(display, next_raised_window_index); \
 \
-			if (window->mapped && window->workspace == display->current_workspace) return sl_focus_and_raise_window(display, next_raised_window_index, time); \
+			if (window->mapped && window->workspace == display->current_workspace) { \
+				warn_log_va("next focused window %lu", next_raised_window_index); \
+				return sl_focus_and_raise_window(display, next_raised_window_index, time); \
+			} \
 		} \
 	}
 
@@ -595,11 +598,11 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_w
 	  with, clients are free to request to change to the Iconic state.
 	*/
 
-	warn_log("todo: send x coordinates correctly for window resize");
+	warn_log("todo: send x and y coordinates correctly for window resize");
 
-	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
+	// XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
 
-	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+	// XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 }
 
 void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
@@ -708,6 +711,7 @@ void sl_delete_raised_window (sl_display* display, Time time) {
 }
 
 void sl_window_erase (sl_display* display, size_t index, Time time) {
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == index) display->focused_window_index = M_invalid_window_index;
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) return sl_raised_window_erase(display, time);
 
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > index) --display->raised_window_index;
@@ -718,7 +722,6 @@ void sl_window_erase (sl_display* display, size_t index, Time time) {
 
 void sl_raised_window_erase (sl_display* display, Time time) {
 	size_t const old_raised_window_index = display->raised_window_index;
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == old_raised_window_index) display->focused_window_index = M_invalid_window_index;
 	sl_cycle_windows_down(display, time);
 
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > old_raised_window_index) --display->raised_window_index;

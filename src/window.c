@@ -116,8 +116,8 @@ void sl_set_window_name (sl_window* window, sl_display* display) {
 
 	XGetWMName(display->x_display, window->x_window, &text_proterty);
 
+	warn_log("hardcoding window->name size");
 	for (size_t i = 0; i < 64 && i < text_proterty.nitems; ++i) {
-		warn_log("hardcoding window->name size");
 		((sl_window_mutable*)window)->name[i] = text_proterty.value[i];
 	}
 }
@@ -140,8 +140,8 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 
 	XGetWMIconName(display->x_display, window->x_window, &text_proterty);
 
+	warn_log("hardcoding window->icon_name size");
 	for (size_t i = 0; i < 64 && i < text_proterty.nitems; ++i) {
-		warn_log("hardcoding window->icon_name size");
 		((sl_window_mutable*)window)->icon_name[i] = text_proterty.value[i];
 	}
 }

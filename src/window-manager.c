@@ -33,15 +33,24 @@
 #include "window.h"
 
 #ifdef D_notify_events
-#	define event_case(M_event_type, M_event_function) \
+#	define event_case(M_event_type, M_event_function, M_event_structure) \
 	case M_event_type: { \
-		warn_log("Event: " #M_event_type); \
-		M_event_function(display, &event); \
+		warn_log_va("Event: " #M_event_type " [%lu]", M_event_structure.window); \
+		M_event_function(display, &M_event_structure); \
+	} break
+#	define selection_event_case(M_event_type, M_event_function, M_event_structure) \
+	case M_event_type: { \
+		warn_log_va("Event: " #M_event_type " [%lu]", M_event_structure.requestor); \
+		M_event_function(display, &M_event_structure); \
 	} break
 #else
-#	define event_case(M_event_type, M_event_function) \
+#	define event_case(M_event_type, M_event_function, M_event_structure) \
 	case M_event_type: { \
-		M_event_function(display, &event); \
+		M_event_function(display, &M_event_structure); \
+	} break
+#	define selection_event_case(M_event_type, M_event_function, M_event_structure) \
+	case M_event_type: { \
+		M_event_function(display, &M_event_structure); \
 	} break
 #endif
 
@@ -73,76 +82,76 @@ int main () {
 	}
 
 	// NOTE: we are sending each atom individually instead of 5 at a time for compatibility reasons
-	sl_notify_supported_atom(display, net_wm_name);
-	sl_notify_supported_atom(display, net_wm_icon_name);
-	sl_notify_supported_atom(display, net_wm_desktop);
-	sl_notify_supported_atom(display, net_wm_window_type);
-	sl_notify_supported_atom(display, net_wm_state);
-	sl_notify_supported_atom(display, net_wm_allowed_actions);
-	sl_notify_supported_atom(display, net_wm_strut);
-	sl_notify_supported_atom(display, net_wm_strut_partial);
-	sl_notify_supported_atom(display, net_wm_icon_geometry);
-	sl_notify_supported_atom(display, net_wm_icon);
-	sl_notify_supported_atom(display, net_wm_pid);
-	sl_notify_supported_atom(display, net_wm_handled_icons);
-	sl_notify_supported_atom(display, net_wm_user_time);
-	sl_notify_supported_atom(display, net_wm_user_time_window);
-	sl_notify_supported_atom(display, net_wm_opaque_region);
-	sl_notify_supported_atom(display, net_wm_bypass_compositor);
+	// sl_notify_supported_atom(display, net_wm_name);
+	// sl_notify_supported_atom(display, net_wm_icon_name);
+	// sl_notify_supported_atom(display, net_wm_desktop);
+	// sl_notify_supported_atom(display, net_wm_window_type);
+	// sl_notify_supported_atom(display, net_wm_state);
+	// sl_notify_supported_atom(display, net_wm_allowed_actions);
+	// sl_notify_supported_atom(display, net_wm_strut);
+	// sl_notify_supported_atom(display, net_wm_strut_partial);
+	// sl_notify_supported_atom(display, net_wm_icon_geometry);
+	// sl_notify_supported_atom(display, net_wm_icon);
+	// sl_notify_supported_atom(display, net_wm_pid);
+	// sl_notify_supported_atom(display, net_wm_handled_icons);
+	// sl_notify_supported_atom(display, net_wm_user_time);
+	// sl_notify_supported_atom(display, net_wm_user_time_window);
+	// sl_notify_supported_atom(display, net_wm_opaque_region);
+	// sl_notify_supported_atom(display, net_wm_bypass_compositor);
 
 	warn_log("todo: this should be where we create threads for every display and handle each individually");
 	for (XEvent event; !XNextEvent(display->x_display, &event);) {
 		switch (event.type) {
 			// ButtonPressMask
-			event_case(ButtonPress, sl_button_press);
+			event_case(ButtonPress, sl_button_press, event.xbutton);
 
 			// ButtonReleaseMask
-			event_case(ButtonRelease, sl_button_release);
+			event_case(ButtonRelease, sl_button_release, event.xbutton);
 
 			// EnterWindowMask
-			event_case(EnterNotify, sl_enter_notify);
+			event_case(EnterNotify, sl_enter_notify, event.xcrossing);
 
 			// LeaveWindowMask
-			event_case(LeaveNotify, sl_leave_notify);
+			event_case(LeaveNotify, sl_leave_notify, event.xcrossing);
 
 			// PointerMotionMask
-			event_case(MotionNotify, sl_motion_notify);
+			event_case(MotionNotify, sl_motion_notify, event.xmotion);
 
 			// StructureNotifyMask and SubstructureNotifyMask
-			event_case(CirculateNotify, sl_circulate_notify);
-			event_case(ConfigureNotify, sl_configure_notify);
-			event_case(CreateNotify, sl_create_notify);
-			event_case(DestroyNotify, sl_destroy_notify);
-			event_case(GravityNotify, sl_gravity_notify);
-			event_case(MapNotify, sl_map_notify);
-			event_case(ReparentNotify, sl_reparent_notify);
-			event_case(UnmapNotify, sl_unmap_notify);
+			event_case(CirculateNotify, sl_circulate_notify, event.xcirculate);
+			event_case(ConfigureNotify, sl_configure_notify, event.xconfigure);
+			event_case(CreateNotify, sl_create_notify, event.xcreatewindow);
+			event_case(DestroyNotify, sl_destroy_notify, event.xdestroywindow);
+			event_case(GravityNotify, sl_gravity_notify, event.xgravity);
+			event_case(MapNotify, sl_map_notify, event.xmap);
+			event_case(ReparentNotify, sl_reparent_notify, event.xreparent);
+			event_case(UnmapNotify, sl_unmap_notify, event.xunmap);
 
 			// SubstructureRedirectMask
-			event_case(CirculateRequest, sl_circulate_request);
-			event_case(ConfigureRequest, sl_configure_request);
-			event_case(MapRequest, sl_map_request);
+			event_case(CirculateRequest, sl_circulate_request, event.xcirculaterequest);
+			event_case(ConfigureRequest, sl_configure_request, event.xconfigurerequest);
+			event_case(MapRequest, sl_map_request, event.xmaprequest);
 
 			// ResizeRedirectMask
-			event_case(ResizeRequest, sl_resize_request);
+			event_case(ResizeRequest, sl_resize_request, event.xresizerequest);
 
 			// PropertyChangeMask
-			event_case(PropertyNotify, sl_property_notify);
+			event_case(PropertyNotify, sl_property_notify, event.xproperty);
 
 			// empty mask events
-			event_case(ClientMessage, sl_client_message);
-			event_case(MappingNotify, sl_mapping_notify);
-			event_case(SelectionClear, sl_selection_clear);
-			event_case(SelectionRequest, sl_selection_request);
-			event_case(SelectionNotify, sl_selection_notify);
+			event_case(ClientMessage, sl_client_message, event.xclient);
+			event_case(MappingNotify, sl_mapping_notify, event.xmapping);
+			event_case(SelectionClear, sl_selection_clear, event.xselectionclear);
+			selection_event_case(SelectionRequest, sl_selection_request, event.xselectionrequest);
+			selection_event_case(SelectionNotify, sl_selection_notify, event.xselection);
 
 			// FocusChangeMask
-			event_case(FocusIn, sl_focus_in);
-			event_case(FocusOut, sl_focus_out);
+			event_case(FocusIn, sl_focus_in, event.xfocus);
+			event_case(FocusOut, sl_focus_out, event.xfocus);
 
 			// KeyPressMask
-			event_case(KeyPress, sl_key_press);
-			event_case(KeyRelease, sl_key_release);
+			event_case(KeyPress, sl_key_press, event.xkey);
+			event_case(KeyRelease, sl_key_release, event.xkey);
 
 		default:
 			warn_log("default case reached at the event loop switch");
