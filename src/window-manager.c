@@ -61,7 +61,8 @@ sl_window_manager* window_manager () {
 
 static void notify_net_supported_impl (sl_display* display, size_t atom_index) {
 	/*
-	  Whenever this spec speaks about “sending a message to the root window”, it is understood that the client is supposed to create a ClientMessage event with the specified contents and send it by using a SendEvent request with the following arguments:
+	  Whenever this spec speaks about “sending a message to the root window”, it is understood that the client is supposed to create a ClientMessage
+	  event with the specified contents and send it by using a SendEvent request with the following arguments:
 
 	  destination     root
 	  propagate       False
@@ -88,7 +89,9 @@ static void notify_net_supported (sl_display* display) {
 	/*
 	  _NET_SUPPORTED, ATOM[]/32
 
-	  This property MUST be set by the Window Manager to indicate which hints it supports. For example: considering _NET_WM_STATE both this atom and all supported states e.g. _NET_WM_STATE_MODAL, _NET_WM_STATE_STICKY, would be listed. This assumes that backwards incompatible changes will not be made to the hints (without being renamed).
+	  This property MUST be set by the Window Manager to indicate which hints it supports. For example: considering _NET_WM_STATE both this atom and all
+	  supported states e.g. _NET_WM_STATE_MODAL, _NET_WM_STATE_STICKY, would be listed. This assumes that backwards incompatible changes will not be
+	  made to the hints (without being renamed).
 	*/
 
 	notify_net_supported_impl(display, net_wm_name);

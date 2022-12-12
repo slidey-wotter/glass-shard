@@ -32,7 +32,8 @@ typedef struct sl_vector {
 #define sl_vector_set_gen(M_type, M_c, M_sl_type)  extern void sl_vector_set_##M_c(sl_vector* vector, ...);
 #define sl_vector_sort_gen(M_type, M_c, M_sl_type) extern void sl_vector_sort_##M_c(sl_vector* vector);
 
-sl_type_gen(sl_vector_at_gen) sl_vector_at_gen(sl_type_register, tr, T_type_register) sl_type_gen(sl_vector_push_gen) sl_vector_push_gen(sl_type_register, tr, T_type_register) sl_type_gen(sl_vector_set_gen) sl_type_gen(sl_vector_sort_gen)
+sl_type_gen(sl_vector_at_gen) sl_vector_at_gen(sl_type_register, tr, T_type_register) sl_type_gen(sl_vector_push_gen)
+sl_vector_push_gen(sl_type_register, tr, T_type_register) sl_type_gen(sl_vector_set_gen) sl_type_gen(sl_vector_sort_gen)
 
 #undef sl_vector_at_gen
 #undef sl_vector_push_gen

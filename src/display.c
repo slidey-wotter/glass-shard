@@ -94,7 +94,8 @@ sl_display* sl_display_create (Display* x_display) {
 
 	display->raised_window_index = M_invalid_window_index;
 	display->focused_window_index = M_invalid_window_index;
-	display->dimensions = (sl_window_dimensions) {.x = 0, .y = 0, .width = XDisplayWidth(display->x_display, 0), .height = XDisplayHeight(display->x_display, 0)};
+	display->dimensions =
+	(sl_window_dimensions) {.x = 0, .y = 0, .width = XDisplayWidth(display->x_display, 0), .height = XDisplayHeight(display->x_display, 0)};
 	display->workspaces_size = 4;
 
 #ifdef D_debug
@@ -104,7 +105,8 @@ sl_display* sl_display_create (Display* x_display) {
 	{
 		XSetWindowAttributes attributes;
 		attributes.cursor = display->cursor;
-		attributes.event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask | EnterWindowMask | LeaveWindowMask | StructureNotifyMask | SubstructureNotifyMask | SubstructureRedirectMask | PropertyChangeMask;
+		attributes.event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask | EnterWindowMask | LeaveWindowMask | StructureNotifyMask |
+		SubstructureNotifyMask | SubstructureRedirectMask | PropertyChangeMask;
 		XChangeWindowAttributes(display->x_display, display->root, CWEventMask | CWCursor, &attributes);
 	}
 
@@ -128,7 +130,14 @@ void sl_display_delete (sl_display* display) {
 }
 
 void sl_notify_supported_atom (sl_display* display, i8 index) {
-	XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .display = display->x_display, .window = display->root, .message_type = display->atoms[net_supported], .format = 32, .data.l[0] = display->atoms[index]};
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.display = display->x_display,
+	.window = display->root,
+	.message_type = display->atoms[net_supported],
+	.format = 32,
+	.data.l[0] = display->atoms[index]};
 	XSendEvent(display->x_display, display->root, false, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
 }
 
@@ -242,7 +251,8 @@ static void cycle_workspace_down (sl_display* display) {
 	void sl_cycle_windows_##M_direction(sl_display* display, Time time) { \
 		if (!is_valid_window_index(display->raised_window_index)) return; \
 \
-		for (size_t next_raised_window_index = window_index_##M_direction(display, display->raised_window_index);; next_raised_window_index = window_index_##M_direction(display, next_raised_window_index)) { \
+		for (size_t next_raised_window_index = window_index_##M_direction(display, display->raised_window_index);; \
+		     next_raised_window_index = window_index_##M_direction(display, next_raised_window_index)) { \
 			if (next_raised_window_index == display->raised_window_index) { \
 				display->focused_window_index = M_invalid_window_index; \
 				display->raised_window_index = M_invalid_window_index; \
@@ -251,7 +261,8 @@ static void cycle_workspace_down (sl_display* display) {
 \
 			sl_window* const window = sl_window_at(display, next_raised_window_index); \
 \
-			if (window->mapped && window->workspace == display->current_workspace) return sl_focus_and_raise_window(display, next_raised_window_index, time); \
+			if (window->mapped && window->workspace == display->current_workspace) \
+				return sl_focus_and_raise_window(display, next_raised_window_index, time); \
 		} \
 	}
 
@@ -306,7 +317,9 @@ void sl_pop_workspace (sl_display* display, Time time) {
 			uint const modifiers[] = {0, display->numlockmask, LockMask, display->numlockmask | LockMask}; \
 			sl_window* const focused_window = sl_focused_window(display); \
 			for (size_t i = 0; i < 4; ++i) \
-				XGrabButton(display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None); \
+				XGrabButton( \
+				display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None \
+				); \
 			display->focused_window_index = M_invalid_window_index; \
 		} \
 \
@@ -459,7 +472,16 @@ static void focus_window_impl (sl_display* display, sl_window* window, Time time
 	warn_log("todo: serial");
 	if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
 
-	XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .send_event = true, .display = display->x_display, .window = window->x_window, .message_type = display->atoms[wm_protocols], .format = 32, .data.l[0] = display->atoms[wm_take_focus], .data.l[1] = time};
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = display->x_display,
+	.window = window->x_window,
+	.message_type = display->atoms[wm_protocols],
+	.format = 32,
+	.data.l[0] = display->atoms[wm_take_focus],
+	.data.l[1] = time};
 
 	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
 }
@@ -473,7 +495,16 @@ static void delete_window_impl (sl_display* display, sl_window* window, Time tim
 	warn_log("todo: serial");
 	if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
 
-	XClientMessageEvent event = (XClientMessageEvent) {.type = ClientMessage, .serial = 0, .send_event = true, .display = display->x_display, .window = window->x_window, .message_type = display->atoms[wm_protocols], .format = 32, .data.l[0] = display->atoms[wm_delete_window], .data.l[1] = time};
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = display->x_display,
+	.window = window->x_window,
+	.message_type = display->atoms[wm_protocols],
+	.format = 32,
+	.data.l[0] = display->atoms[wm_delete_window],
+	.data.l[1] = time};
 
 	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
 }
@@ -486,7 +517,9 @@ void sl_focus_window (sl_display* display, size_t index, Time time) {
 	if (is_valid_window_index(display->focused_window_index)) {
 		sl_window* const focused_window = sl_focused_window(display);
 		for (size_t i = 0; i < 4; ++i)
-			XGrabButton(display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None);
+			XGrabButton(
+			display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None
+			);
 	}
 
 	display->focused_window_index = index;
@@ -498,7 +531,9 @@ void sl_focus_window (sl_display* display, size_t index, Time time) {
 		XUngrabButton(display->x_display, Button1, modifiers[i], focused_window->x_window);
 }
 
-static void raise_window_impl (sl_display* display, sl_window* window, M_maybe_unused Time time) { XRaiseWindow(display->x_display, window->x_window); }
+static void raise_window_impl (sl_display* display, sl_window* window, M_maybe_unused Time time) {
+	XRaiseWindow(display->x_display, window->x_window);
+}
 
 void sl_raise_window (sl_display* display, size_t index, Time time) {
 	if (is_valid_window_index(display->raised_window_index) && index == display->raised_window_index) return;
@@ -533,7 +568,8 @@ void sl_swap_window_with_raised_window (sl_display* display, size_t index, Time 
 		sl_window_swap(window, raised_window);
 
 		size_t saved_index = display->raised_window_index;
-		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index) display->focused_window_index = index;
+		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index)
+			display->focused_window_index = index;
 		display->raised_window_index = index;
 
 		sl_focus_and_raise_window(display, saved_index, time);
@@ -597,7 +633,16 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_w
 
 	warn_log("todo: send x and y coordinates correctly for window resize");
 
-	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
+	XConfigureEvent configure_event = (XConfigureEvent) {
+	.type = ConfigureNotify,
+	.display = display->x_display,
+	.event = window->x_window,
+	.window = window->x_window,
+	.x = dimensions.x,
+	.y = dimensions.y,
+	.width = dimensions.width,
+	.height = dimensions.height,
+	.override_redirect = false};
 
 	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 }
@@ -605,13 +650,17 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_w
 void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
 	XMoveWindow(display->x_display, window->x_window, x, y);
 
-	send_new_dimensions_to_window(display, window, (sl_window_dimensions) {.x = x, .y = y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height});
+	send_new_dimensions_to_window(
+	display, window, (sl_window_dimensions) {.x = x, .y = y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height}
+	);
 }
 
 void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height) {
 	XResizeWindow(display->x_display, window->x_window, width, height);
 
-	send_new_dimensions_to_window(display, window, (sl_window_dimensions) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = width, .height = height});
+	send_new_dimensions_to_window(
+	display, window, (sl_window_dimensions) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = width, .height = height}
+	);
 }
 
 void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
@@ -620,7 +669,9 @@ void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_windo
 	send_new_dimensions_to_window(display, window, dimensions);
 }
 
-void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes) { XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes); }
+void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes) {
+	XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes);
+}
 
 void sl_maximize_raised_window (sl_display* display) {
 	if (!is_valid_window_index(display->raised_window_index)) return;
@@ -642,7 +693,8 @@ void sl_maximize_raised_window (sl_display* display) {
 	{
 		XWindowAttributes attributes;
 		XGetWindowAttributes(display->x_display, raised_window->x_window, &attributes);
-		raised_window->saved_dimensions = (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
+		raised_window->saved_dimensions =
+		(sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
 	}
 
 	return sl_move_and_resize_window(display, raised_window, display->dimensions);
@@ -708,7 +760,8 @@ void sl_delete_raised_window (sl_display* display, Time time) {
 }
 
 void sl_window_erase (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == index) display->focused_window_index = M_invalid_window_index;
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == index)
+		display->focused_window_index = M_invalid_window_index;
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) return sl_raised_window_erase(display, time);
 
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > index) --display->raised_window_index;
@@ -719,12 +772,14 @@ void sl_window_erase (sl_display* display, size_t index, Time time) {
 }
 
 void sl_raised_window_erase (sl_display* display, Time time) {
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index) display->focused_window_index = M_invalid_window_index;
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index)
+		display->focused_window_index = M_invalid_window_index;
 	size_t const old_raised_window_index = display->raised_window_index;
 	sl_cycle_windows_down(display, time);
 
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > old_raised_window_index) --display->raised_window_index;
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > old_raised_window_index) --display->focused_window_index;
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > old_raised_window_index)
+		--display->focused_window_index;
 
 	sl_window_destroy(sl_window_at(display, old_raised_window_index));
 	sl_vector_erase(display->windows, old_raised_window_index);

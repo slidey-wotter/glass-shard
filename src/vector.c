@@ -238,7 +238,10 @@ extern void sl_vector_erase (sl_vector* vector, size_t index) {
 	}
 
 	for (; index < vector->size - 1; ++index) {
-		memcpy(vector->data + index * sl_size_from_type(vector->type), vector->data + (index + 1) * sl_size_from_type(vector->type), sl_size_from_type(vector->type));
+		memcpy(
+		vector->data + index * sl_size_from_type(vector->type), vector->data + (index + 1) * sl_size_from_type(vector->type),
+		sl_size_from_type(vector->type)
+		);
 	}
 
 	vector_pop_impl(vector);
@@ -277,7 +280,8 @@ void sl_vector_set (sl_vector* vector, ...) {
 	va_end(va);
 }
 
-static void merge (void(set)(void*, void*), bool(compare)(void*, void*), u8* destination, u8* source, size_t left, size_t right, size_t end, size_t size) {
+static void
+merge (void(set)(void*, void*), bool(compare)(void*, void*), u8* destination, u8* source, size_t left, size_t right, size_t end, size_t size) {
 	size_t i = left, j = right;
 	for (size_t k = left; k < end; ++k) {
 		if (i < right && (compare((void*)source + i * size, (void*)source + j * size) || j == end)) {

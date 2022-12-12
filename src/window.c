@@ -59,7 +59,7 @@ typedef struct sl_window_mutable {
 		i16 gravity;
 	} window_hints;
 
-	struct {
+	struct window_protocols {
 		bool take_focus;
 		bool delete_window;
 	} have_protocols;
@@ -69,6 +69,8 @@ typedef struct sl_window_mutable {
 	struct sl_sized_string_mutable net_wm_icon_name;
 	struct sl_sized_string_mutable net_wm_visible_icon_name;
 
+	u16 type;
+	u16 state;
 	u16 allowed_actions;
 } sl_window_mutable;
 
@@ -81,6 +83,9 @@ void sl_window_destroy (sl_window* window) {
 	if (window->name.data) free(((sl_window_mutable*)window)->name.data);
 	if (window->icon_name.data) free(((sl_window_mutable*)window)->icon_name.data);
 	if (window->net_wm_name.data) free(((sl_window_mutable*)window)->net_wm_name.data);
+	if (window->net_wm_visible_name.data) free(((sl_window_mutable*)window)->net_wm_visible_name.data);
+	if (window->net_wm_icon_name.data) free(((sl_window_mutable*)window)->net_wm_icon_name.data);
+	if (window->net_wm_visible_icon_name.data) free(((sl_window_mutable*)window)->net_wm_visible_icon_name.data);
 }
 
 void sl_window_swap (sl_window* lhs, sl_window* rhs) {
@@ -324,8 +329,10 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 	}
 
 	if (size_hints.flags & PAspect) {
-		((sl_window_mutable*)window)->window_hints.min_aspect = (struct window_normal_hints_aspect) {.numerator = size_hints.min_aspect.x, .denominator = size_hints.y};
-		((sl_window_mutable*)window)->window_hints.max_aspect = (struct window_normal_hints_aspect) {.numerator = size_hints.max_aspect.x, .denominator = size_hints.y};
+		((sl_window_mutable*)window)->window_hints.min_aspect =
+		(struct window_normal_hints_aspect) {.numerator = size_hints.min_aspect.x, .denominator = size_hints.y};
+		((sl_window_mutable*)window)->window_hints.max_aspect =
+		(struct window_normal_hints_aspect) {.numerator = size_hints.max_aspect.x, .denominator = size_hints.y};
 	}
 
 	if (size_hints.flags & PWinGravity) {
@@ -333,8 +340,12 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 	}
 
 	warn_log_va(
-	"[%lu] window hints: min_width %u, min_height %u, max_width %u, max_height %u, width_inc %u, height_inc %u, min_aspect %u/%u, max_aspect %u/%u, base_width %u, base_height %u, gravity %u", window->x_window, window->window_hints.min_width, window->window_hints.min_height, window->window_hints.max_width, window->window_hints.max_height, window->window_hints.width_inc, window->window_hints.height_inc, window->window_hints.min_aspect.numerator, window->window_hints.min_aspect.denominator,
-	window->window_hints.max_aspect.numerator, window->window_hints.max_aspect.denominator, window->window_hints.base_width, window->window_hints.base_height, window->window_hints.gravity
+	"[%lu] window normal hints: min_width %u, min_height %u, max_width %u, max_height %u, width_inc %u, height_inc %u, min_aspect %u/%u, max_aspect "
+	"%u/%u, base_width %u, base_height %u, gravity %u",
+	window->x_window, window->window_hints.min_width, window->window_hints.min_height, window->window_hints.max_width, window->window_hints.max_height,
+	window->window_hints.width_inc, window->window_hints.height_inc, window->window_hints.min_aspect.numerator,
+	window->window_hints.min_aspect.denominator, window->window_hints.max_aspect.numerator, window->window_hints.max_aspect.denominator,
+	window->window_hints.base_width, window->window_hints.base_height, window->window_hints.gravity
 	);
 }
 
@@ -576,19 +587,28 @@ void sl_set_window_protocols (sl_window* window, sl_display* display) {
 
 	if (!XGetWMProtocols(display->x_display, window->x_window, &protocols, &n)) return;
 
+	((sl_window_mutable*)window)->have_protocols = (struct window_protocols) {.take_focus = false, .delete_window = false};
+
 	for (size_t i = 0; i <= (size_t)n; ++i) {
 		if (protocols[i] == display->atoms[wm_take_focus]) {
 			((sl_window_mutable*)window)->have_protocols.take_focus = true;
 			continue;
 		}
 
-		if (protocols[i] == display->atoms[wm_take_focus]) {
+		if (protocols[i] == display->atoms[wm_delete_window]) {
 			((sl_window_mutable*)window)->have_protocols.delete_window = true;
 			continue;
 		}
 	}
 
 	XFree(protocols);
+
+	warn_log_va(
+	"[%lu] window protocols: %s", window->x_window,
+	window->have_protocols.take_focus    ? (window->have_protocols.delete_window ? "take focus and delete window" : "take focus") :
+	window->have_protocols.delete_window ? "delete window" :
+	                                       "none"
+	);
 }
 
 void sl_set_window_colormap_windows (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -601,7 +621,7 @@ void sl_set_window_colormap_windows (M_maybe_unused sl_window* window, M_maybe_u
 	  see Colormaps
 	*/
 
-	warn_log("todo: wm_window_colormaps");
+	warn_log("todo: wm_window_colormap_windows");
 }
 
 void sl_set_window_client_machine (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -618,7 +638,8 @@ void sl_set_window_client_machine (M_maybe_unused sl_window* window, M_maybe_unu
   Extended Window Manager Hints: Application Window Properties
 */
 
-static void window_set_net_utf8_string_property (sl_window* window, sl_display* display, size_t atom_index, struct sl_sized_string_mutable* sized_string) {
+static void
+window_set_net_utf8_string_property (sl_window* window, sl_display* display, size_t atom_index, struct sl_sized_string_mutable* sized_string) {
 	Atom actual_type;
 	int actual_format;
 	ulong items_size;
@@ -681,7 +702,10 @@ static void window_set_net_utf8_string_property (sl_window* window, sl_display* 
 
 	XFree(prop);
 
-	XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 2 + (bytes_after >> 2), false, display->atoms[type_utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
+	XGetWindowProperty(
+	display->x_display, window->x_window, display->atoms[atom_index], 0, 2 + (bytes_after >> 2), false, display->atoms[type_utf8_string], &actual_type,
+	&actual_format, &items_size, &bytes_after, &prop
+	);
 
 	sized_string->size = items_size;
 	if (sized_string->data) free(sized_string->data);
@@ -709,7 +733,9 @@ void sl_window_set_net_wm_visible_name (M_maybe_unused sl_window* window, M_mayb
 
 	  If the Window Manager displays a window name other than _NET_WM_NAME the Window Manager MUST set this to the title displayed in UTF-8 encoding.
 
-	  Rationale: This property is for Window Managers that display a title different from the _NET_WM_NAME or WM_NAME of the window (i.e. xterm <1>, xterm <2>, ... is shown, but _NET_WM_NAME / WM_NAME is still xterm for each window) thereby allowing Pagers to display the same title as the Window Manager.
+	  Rationale: This property is for Window Managers that display a title different from the _NET_WM_NAME or WM_NAME of the window (i.e. xterm <1>,
+	  xterm <2>, ... is shown, but _NET_WM_NAME / WM_NAME is still xterm for each window) thereby allowing Pagers to display the same title as the
+	  Window Manager.
 	*/
 
 	window_set_net_utf8_string_property(window, display, net_wm_visible_name, (struct sl_sized_string_mutable*)&window->net_wm_visible_name);
@@ -721,7 +747,8 @@ void sl_window_set_net_wm_icon_name (M_maybe_unused sl_window* window, M_maybe_u
 	/*
 	  _NET_WM_ICON_NAME, UTF8_STRING
 
-	  The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_ICON_NAME.
+	  The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to
+	  WM_ICON_NAME.
 	*/
 
 	window_set_net_utf8_string_property(window, display, net_wm_icon_name, (struct sl_sized_string_mutable*)&window->net_wm_icon_name);
@@ -733,25 +760,31 @@ void sl_window_set_net_wm_visible_icon_name (M_maybe_unused sl_window* window, M
 	/*
 	  _NET_WM_VISIBLE_ICON_NAME, UTF8_STRING
 
-	  If the Window Manager displays an icon name other than _NET_WM_ICON_NAME the Window Manager MUST set this to the title displayed in UTF-8 encoding.
+	  If the Window Manager displays an icon name other than _NET_WM_ICON_NAME the Window Manager MUST set this to the title displayed in UTF-8
+	  encoding.
 	*/
 
 	window_set_net_utf8_string_property(window, display, net_wm_visible_icon_name, (struct sl_sized_string_mutable*)&window->net_wm_visible_icon_name);
 
-	warn_log_va("[%lu] net_wm_visible_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_icon_name.size, window->net_wm_visible_icon_name.data);
+	warn_log_va(
+	"[%lu] net_wm_visible_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_icon_name.size, window->net_wm_visible_icon_name.data
+	);
 }
 
 void sl_window_set_net_wm_desktop (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
 	/*
 	  _NET_WM_DESKTOP desktop, CARDINAL/32
 
-	  Cardinal to determine the desktop the window is in (or wants to be) starting with 0 for the first desktop. A Client MAY choose not to set this property, in which case the Window Manager SHOULD place it as it wishes. 0xFFFFFFFF indicates that the window SHOULD appear on all desktops.
+	  Cardinal to determine the desktop the window is in (or wants to be) starting with 0 for the first desktop. A Client MAY choose not to set this
+	  property, in which case the Window Manager SHOULD place it as it wishes. 0xFFFFFFFF indicates that the window SHOULD appear on all desktops.
 
 	  The Window Manager should honor _NET_WM_DESKTOP whenever a withdrawn window requests to be mapped.
 
-	  The Window Manager should remove the property whenever a window is withdrawn but it should leave the property in place when it is shutting down, e.g. in response to losing ownership of the WM_Sn manager selection.
+	  The Window Manager should remove the property whenever a window is withdrawn but it should leave the property in place when it is shutting down,
+	  e.g. in response to losing ownership of the WM_Sn manager selection.
 
-	  Rationale: Removing the property upon window withdrawal helps legacy applications which want to reuse withdrawn windows. Not removing the property upon shutdown allows the next Window Manager to restore windows to their previous desktops.
+	  Rationale: Removing the property upon window withdrawal helps legacy applications which want to reuse withdrawn windows. Not removing the property
+	  upon shutdown allows the next Window Manager to restore windows to their previous desktops.
 
 	  A Client can request a change of desktop for a non-withdrawn window by sending a _NET_WM_DESKTOP client message to the root window:
 
@@ -763,213 +796,21 @@ void sl_window_set_net_wm_desktop (M_maybe_unused sl_window* window, M_maybe_unu
 	  data.l[1] = source indication
 	  other data.l[] elements = 0
 
-	  See the section called “Source indication in requests” for details on the source indication. The Window Manager MUST keep this property updated on all windows.
+	  See the section called “Source indication in requests” for details on the source indication. The Window Manager MUST keep this property updated on
+	  all windows.
 	*/
 
 	warn_log("todo: _net_wm_desktop");
 }
 
-void sl_window_set_net_wm_window_type (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
-	/*
-	  _NET_WM_WINDOW_TYPE, ATOM[]/32
-
-	  This SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to allow for extension of the list of types whilst providing
-	  default behavior for Window Managers that do not recognize the extensions.
-
-	  This hint SHOULD also be set for override-redirect windows to allow compositing managers to apply consistent decorations to menus, tooltips etc.
-
-	  Rationale: This hint is intended to replace the MOTIF hints. One of the objections to the MOTIF hints is that they are a purely visual description of the window decoration. By describing the function of the window, the Window Manager can apply consistent decoration and behavior to windows of the same type. Possible examples of behavior include keeping dock/panels on top or allowing pinnable menus / toolbars to only be hidden when another window has focus (NextStep style).
-
-	  _NET_WM_WINDOW_TYPE_DESKTOP, ATOM
-	  _NET_WM_WINDOW_TYPE_DOCK, ATOM
-	  _NET_WM_WINDOW_TYPE_TOOLBAR, ATOM
-	  _NET_WM_WINDOW_TYPE_MENU, ATOM
-	  _NET_WM_WINDOW_TYPE_UTILITY, ATOM
-	  _NET_WM_WINDOW_TYPE_SPLASH, ATOM
-	  _NET_WM_WINDOW_TYPE_DIALOG, ATOM
-	  _NET_WM_WINDOW_TYPE_DROPDOWN_MENU, ATOM
-	  _NET_WM_WINDOW_TYPE_POPUP_MENU, ATOM
-	  _NET_WM_WINDOW_TYPE_TOOLTIP, ATOM
-	  _NET_WM_WINDOW_TYPE_NOTIFICATION, ATOM
-	  _NET_WM_WINDOW_TYPE_COMBO, ATOM
-	  _NET_WM_WINDOW_TYPE_DND, ATOM
-	  _NET_WM_WINDOW_TYPE_NORMAL, ATOM
-
-	  _NET_WM_WINDOW_TYPE_DESKTOP indicates a desktop feature. This can include a single window containing desktop icons with the same dimensions as the screen, allowing the desktop environment to have full control of the desktop, without the need for proxying root window clicks.
-
-	  _NET_WM_WINDOW_TYPE_DOCK indicates a dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
-
-	  _NET_WM_WINDOW_TYPE_TOOLBAR and _NET_WM_WINDOW_TYPE_MENU indicate toolbar and pinnable menu windows, respectively (i.e. toolbars and menus "torn off" from the main application). Windows of this type may set the WM_TRANSIENT_FOR hint indicating the main application window. Note that the _NET_WM_WINDOW_TYPE_MENU should be set on torn-off managed windows, where _NET_WM_WINDOW_TYPE_DROPDOWN_MENU and _NET_WM_WINDOW_TYPE_POPUP_MENU are typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_UTILITY indicates a small persistent utility window, such as a palette or toolbox. It is distinct from type TOOLBAR because it does not correspond to a toolbar torn off from the main application. It's distinct from type DIALOG because it isn't a transient dialog, the user will probably keep it open while they're working. Windows of this type may set the WM_TRANSIENT_FOR hint indicating the main application window.
-
-	  _NET_WM_WINDOW_TYPE_SPLASH indicates that the window is a splash screen displayed as an application is starting up.
-
-	  _NET_WM_WINDOW_TYPE_DIALOG indicates that this is a dialog window. If _NET_WM_WINDOW_TYPE is not set, then managed windows with WM_TRANSIENT_FOR set MUST be taken as this type. Override-redirect windows with WM_TRANSIENT_FOR, but without _NET_WM_WINDOW_TYPE must be taken as _NET_WM_WINDOW_TYPE_NORMAL.
-
-	  _NET_WM_WINDOW_TYPE_DROPDOWN_MENU indicates that the window in question is a dropdown menu, ie., the kind of menu that typically appears when the user clicks on a menubar, as opposed to a popup menu which typically appears when the user right-clicks on an object. This property is typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_POPUP_MENU indicates that the window in question is a popup menu, ie., the kind of menu that typically appears when the user right clicks on an object, as opposed to a dropdown menu which typically appears when the user clicks on a menubar. This property is typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_TOOLTIP indicates that the window in question is a tooltip, ie., a short piece of explanatory text that typically appear after the mouse cursor hovers over an object for a while. This property is typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_NOTIFICATION indicates a notification. An example of a notification would be a bubble appearing with informative text such as "Your laptop is running out of power" etc. This property is typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_COMBO should be used on the windows that are popped up by combo boxes. An example is a window that appears below a text field with a list of suggested completions. This property is typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_DND indicates that the window is being dragged. Clients should set this hint when the window in question contains a representation of an object being dragged from one place to another. An example would be a window containing an icon that is being dragged from one file manager window to another. This property is typically used on override-redirect windows.
-
-	  _NET_WM_WINDOW_TYPE_NORMAL indicates that this is a normal, top-level window, either managed or override-redirect. Managed windows with neither _NET_WM_WINDOW_TYPE nor WM_TRANSIENT_FOR set MUST be taken as this type. Override-redirect windows without _NET_WM_WINDOW_TYPE, must be taken as this type, whether or not they have WM_TRANSIENT_FOR set.
-	*/
-
-	warn_log("todo: _net_wm_window_type");
-}
-
-void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
-	/*
-	  _NET_WM_STATE, ATOM[]
-
-	  A list of hints describing the window state. Atoms present in the list MUST be considered set, atoms not present in the list MUST be considered not set. The Window Manager SHOULD honor _NET_WM_STATE whenever a withdrawn window requests to be mapped. A Client wishing to change the state of a window MUST send a _NET_WM_STATE client message to the root window (see below). The Window Manager MUST keep this property updated to reflect the current state of the window.
-
-	  The Window Manager should remove the property whenever a window is withdrawn, but it should leave the property in place when it is shutting down, e.g. in response to losing ownership of the WM_Sn manager selection.
-
-	  Rationale: Removing the property upon window withdrawal helps legacy applications which want to reuse withdrawn windows. Not removing the property upon shutdown allows the next Window Manager to restore windows to their previous state.
-
-	  Possible atoms are:
-
-	  _NET_WM_STATE_MODAL, ATOM
-	  _NET_WM_STATE_STICKY, ATOM
-	  _NET_WM_STATE_MAXIMIZED_VERT, ATOM
-	  _NET_WM_STATE_MAXIMIZED_HORZ, ATOM
-	  _NET_WM_STATE_SHADED, ATOM
-	  _NET_WM_STATE_SKIP_TASKBAR, ATOM
-	  _NET_WM_STATE_SKIP_PAGER, ATOM
-	  _NET_WM_STATE_HIDDEN, ATOM
-	  _NET_WM_STATE_FULLSCREEN, ATOM
-	  _NET_WM_STATE_ABOVE, ATOM
-	  _NET_WM_STATE_BELOW, ATOM
-	  _NET_WM_STATE_DEMANDS_ATTENTION, ATOM
-	  _NET_WM_STATE_FOCUSED, ATOM
-
-	  An implementation MAY add new atoms to this list. Implementations without extensions MUST ignore any unknown atoms, effectively removing them from the list. These extension atoms MUST NOT start with the prefix _NET.
-
-	  _NET_WM_STATE_MODAL indicates that this is a modal dialog box. If the WM_TRANSIENT_FOR hint is set to another toplevel window, the dialog is modal for that window; if WM_TRANSIENT_FOR is not set or set to the root window the dialog is modal for its window group.
-
-	  _NET_WM_STATE_STICKY indicates that the Window Manager SHOULD keep the window's position fixed on the screen, even when the virtual desktop scrolls.
-
-	  _NET_WM_STATE_MAXIMIZED_{VERT,HORZ} indicates that the window is {vertically,horizontally} maximized.
-
-	  _NET_WM_STATE_SHADED indicates that the window is shaded.
-
-	  _NET_WM_STATE_SKIP_TASKBAR indicates that the window should not be included on a taskbar. This hint should be requested by the application, i.e. it indicates that the window by nature is never in the taskbar. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact nature of the window.
-
-	  _NET_WM_STATE_SKIP_PAGER indicates that the window should not be included on a Pager. This hint should be requested by the application, i.e. it indicates that the window by nature is never in the Pager. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact nature of the window.
-
-	  _NET_WM_STATE_HIDDEN should be set by the Window Manager to indicate that a window would not be visible on the screen if its desktop/viewport were active and its coordinates were within the screen bounds. The canonical example is that minimized windows should be in the _NET_WM_STATE_HIDDEN state. Pagers and similar applications should use _NET_WM_STATE_HIDDEN instead of WM_STATE to decide whether to display a window in miniature representations of the windows on a desktop.
-
-	  Implementation note: if an Application asks to toggle _NET_WM_STATE_HIDDEN the Window Manager should probably just ignore the request, since _NET_WM_STATE_HIDDEN is a function of some other aspect of the window such as minimization, rather than an independent state.
-
-	  _NET_WM_STATE_FULLSCREEN indicates that the window should fill the entire screen and have no window decorations. Additionally the Window Manager is responsible for restoring the original geometry after a switch from fullscreen back to normal window. For example, a presentation program would use this hint.
-
-	  _NET_WM_STATE_ABOVE indicates that the window should be on top of most windows (see the section called “Stacking order” for details).
-
-	  _NET_WM_STATE_BELOW indicates that the window should be below most windows (see the section called “Stacking order” for details).
-
-	  _NET_WM_STATE_ABOVE and _NET_WM_STATE_BELOW are mainly meant for user preferences and should not be used by applications e.g. for drawing attention to their dialogs (the Urgency hint should be used in that case, see the section called “Urgency”).'
-
-	  _NET_WM_STATE_DEMANDS_ATTENTION indicates that some action in or with the window happened. For example, it may be set by the Window Manager if the window requested activation but the Window Manager refused it, or the application may set it if it finished some work. This state may be set by both the Client and the Window Manager. It should be unset by the Window Manager when it decides the window got the required attention (usually, that it got activated).
-
-	  _NET_WM_STATE_FOCUSED indicates whether the window's decorations are drawn in an active state. Clients MUST regard it as a read-only hint. It cannot be set at map time or changed via a _NET_WM_STATE client message. The window given by _NET_ACTIVE_WINDOW will usually have this hint, but at times other windows may as well, if they have a strong association with the active window and will be considered as a unit with it by the user. Clients that modify the appearance of internal elements when a
-	  toplevel has keyboard focus SHOULD check for the availability of this state in _NET_SUPPORTED and, if it is available, use it in preference to tracking focus via FocusIn events. By doing so they will match the window decorations and accurately reflect the intentions of the Window Manager.
-
-	  To change the state of a mapped window, a Client MUST send a _NET_WM_STATE client message to the root window:
-
-	   window  = the respective client window
-	   message_type = _NET_WM_STATE
-	   format = 32
-	   data.l[0] = the action, as listed below
-	   data.l[1] = first property to alter
-	   data.l[2] = second property to alter
-	   data.l[3] = source indication
-	   other data.l[] elements = 0
-
-	  This message allows two properties to be changed simultaneously, specifically to allow both horizontal and vertical maximization to be altered together. l[2] MUST be set to zero if only one property is to be changed. See the section called “Source indication in requests” for details on the source indication. l[0], the action, MUST be one of:
-
-	  _NET_WM_STATE_REMOVE        0     remove/unset property
-	  _NET_WM_STATE_ADD           1     add/set property
-	  _NET_WM_STATE_TOGGLE        2     toggle property
-
-	  See also the implementation notes on urgency and fixed size windows.
-	*/
-
-	warn_log("todo: _net_wm_state");
-}
-
-void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
-	/*
-	  _NET_WM_ALLOWED_ACTIONS, ATOM[]
-
-	  A list of atoms indicating user operations that the Window Manager supports for this window. Atoms present in the list indicate allowed actions, atoms not present in the list indicate actions that are not supported for this window. The Window Manager MUST keep this property updated to reflect the actions which are currently "active" or "sensitive" for a window. Taskbars, Pagers, and other tools use _NET_WM_ALLOWED_ACTIONS to decide which actions should be made available to the user.
-
-	  Possible atoms are:
-
-	  _NET_WM_ACTION_MOVE, ATOM
-	  _NET_WM_ACTION_RESIZE, ATOM
-	  _NET_WM_ACTION_MINIMIZE, ATOM
-	  _NET_WM_ACTION_SHADE, ATOM
-	  _NET_WM_ACTION_STICK, ATOM
-	  _NET_WM_ACTION_MAXIMIZE_HORZ, ATOM
-	  _NET_WM_ACTION_MAXIMIZE_VERT, ATOM
-	  _NET_WM_ACTION_FULLSCREEN, ATOM
-	  _NET_WM_ACTION_CHANGE_DESKTOP, ATOM
-	  _NET_WM_ACTION_CLOSE, ATOM
-	  _NET_WM_ACTION_ABOVE, ATOM
-	  _NET_WM_ACTION_BELOW, ATOM
-
-	  An implementation MAY add new atoms to this list. Implementations without extensions MUST ignore any unknown atoms, effectively removing them from the list. These extension atoms MUST NOT start with the prefix _NET.
-
-	  Note that the actions listed here are those that the Window Manager will honor for this window. The operations must still be requested through the normal mechanisms outlined in this specification. For example, _NET_WM_ACTION_CLOSE does not mean that clients can send a WM_DELETE_WINDOW message to this window; it means that clients can use a _NET_CLOSE_WINDOW message to ask the Window Manager to do so.
-
-	  Window Managers SHOULD ignore the value of _NET_WM_ALLOWED_ACTIONS when they initially manage a window. This value may be left over from a previous Window Manager with different policies.
-
-	  _NET_WM_ACTION_MOVE indicates that the window may be moved around the screen.
-
-	  _NET_WM_ACTION_RESIZE indicates that the window may be resized. (Implementation note: Window Managers can identify a non-resizable window because its minimum and maximum size in WM_NORMAL_HINTS will be the same.)
-
-	  _NET_WM_ACTION_MINIMIZE indicates that the window may be iconified.
-
-	  _NET_WM_ACTION_SHADE indicates that the window may be shaded.
-
-	  _NET_WM_ACTION_STICK indicates that the window may have its sticky state toggled (as for _NET_WM_STATE_STICKY). Note that this state has to do with viewports, not desktops.
-
-	  _NET_WM_ACTION_MAXIMIZE_HORZ indicates that the window may be maximized horizontally.
-
-	  _NET_WM_ACTION_MAXIMIZE_VERT indicates that the window may be maximized vertically.
-
-	  _NET_WM_ACTION_FULLSCREEN indicates that the window may be brought to fullscreen state.
-
-	  _NET_WM_ACTION_CHANGE_DESKTOP indicates that the window may be moved between desktops.
-
-	  _NET_WM_ACTION_CLOSE indicates that the window may be closed (i.e. a _NET_CLOSE_WINDOW message may be sent).
-
-	  _NET_WM_ACTION_ABOVE indicates that the window may placed in the "above" layer of windows (i.e. will respond to _NET_WM_STATE_ABOVE changes; see also the section called “Stacking order” for details).
-
-	  _NET_WM_ACTION_BELOW indicates that the window may placed in the "below" layer of windows (i.e. will respond to _NET_WM_STATE_BELOW changes; see also the section called “Stacking order” for details)).
-	*/
-
-	warn_log("todo: _net_wm_allowed_actions");
-
+static int get_net_atom_list (sl_window* window, sl_display* display, size_t atom_index, uchar** prop, ulong* items_size) {
 	Atom actual_type;
 	int actual_format;
-	ulong items_size;
 	ulong bytes_after;
-	uchar* prop = NULL;
 
-	size_t offset = 0;
-
-	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[type_atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
+	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 1, false, display->atoms[type_atom], &actual_type, &actual_format, items_size, &bytes_after, prop) != Success) {
 		warn_log("XGetWindowProperty does not return Success");
-		return;
+		return -1;
 	}
 
 	/*
@@ -987,8 +828,8 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	*/
 
 	if (actual_type == None) {
-		XFree(prop);
-		return;
+		XFree(*prop);
+		return -1;
 	}
 
 	/*
@@ -1000,9 +841,9 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	*/
 
 	if (actual_type != display->atoms[type_atom]) {
-		XFree(prop);
+		XFree(*prop);
 		warn_log("atom type mismatch");
-		return;
+		return -1;
 	}
 
 	/*
@@ -1021,29 +862,371 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	  of trailing unread bytes in the stored property.
 	*/
 
+	XGetWindowProperty(
+	display->x_display, window->x_window, display->atoms[atom_index], 0, 2 + (bytes_after >> 2), false, display->atoms[type_atom], &actual_type,
+	&actual_format, items_size, &bytes_after, prop
+	);
+	return 0;
+}
+
+void sl_window_set_net_wm_window_type (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
+	/*
+	  _NET_WM_WINDOW_TYPE, ATOM[]/32
+
+	  This SHOULD be set by the Client before mapping to a list of atoms indicating the functional type of the window. This property SHOULD be used by
+	  the window manager in determining the decoration, stacking position and other behavior of the window. The Client SHOULD specify window types in
+	  order of preference (the first being most preferable) but MUST include at least one of the basic window type atoms from the list below. This is to
+	  allow for extension of the list of types whilst providing default behavior for Window Managers that do not recognize the extensions.
+
+	  This hint SHOULD also be set for override-redirect windows to allow compositing managers to apply consistent decorations to menus, tooltips etc.
+
+	  Rationale: This hint is intended to replace the MOTIF hints. One of the objections to the MOTIF hints is that they are a purely visual description
+	  of the window decoration. By describing the function of the window, the Window Manager can apply consistent decoration and behavior to windows of
+	  the same type. Possible examples of behavior include keeping dock/panels on top or allowing pinnable menus / toolbars to only be hidden when
+	  another window has focus (NextStep style).
+
+	  _NET_WM_WINDOW_TYPE_DESKTOP, ATOM
+	  _NET_WM_WINDOW_TYPE_DOCK, ATOM
+	  _NET_WM_WINDOW_TYPE_TOOLBAR, ATOM
+	  _NET_WM_WINDOW_TYPE_MENU, ATOM
+	  _NET_WM_WINDOW_TYPE_UTILITY, ATOM
+	  _NET_WM_WINDOW_TYPE_SPLASH, ATOM
+	  _NET_WM_WINDOW_TYPE_DIALOG, ATOM
+	  _NET_WM_WINDOW_TYPE_DROPDOWN_MENU, ATOM
+	  _NET_WM_WINDOW_TYPE_POPUP_MENU, ATOM
+	  _NET_WM_WINDOW_TYPE_TOOLTIP, ATOM
+	  _NET_WM_WINDOW_TYPE_NOTIFICATION, ATOM
+	  _NET_WM_WINDOW_TYPE_COMBO, ATOM
+	  _NET_WM_WINDOW_TYPE_DND, ATOM
+	  _NET_WM_WINDOW_TYPE_NORMAL, ATOM
+
+	  _NET_WM_WINDOW_TYPE_DESKTOP indicates a desktop feature. This can include a single window containing desktop icons with the same dimensions as the
+	  screen, allowing the desktop environment to have full control of the desktop, without the need for proxying root window clicks.
+
+	  _NET_WM_WINDOW_TYPE_DOCK indicates a dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
+
+	  _NET_WM_WINDOW_TYPE_TOOLBAR and _NET_WM_WINDOW_TYPE_MENU indicate toolbar and pinnable menu windows, respectively (i.e. toolbars and menus "torn
+	  off" from the main application). Windows of this type may set the WM_TRANSIENT_FOR hint indicating the main application window. Note that the
+	  _NET_WM_WINDOW_TYPE_MENU should be set on torn-off managed windows, where _NET_WM_WINDOW_TYPE_DROPDOWN_MENU and _NET_WM_WINDOW_TYPE_POPUP_MENU are
+	  typically used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_UTILITY indicates a small persistent utility window, such as a palette or toolbox. It is distinct from type TOOLBAR because it
+	  does not correspond to a toolbar torn off from the main application. It's distinct from type DIALOG because it isn't a transient dialog, the user
+	  will probably keep it open while they're working. Windows of this type may set the WM_TRANSIENT_FOR hint indicating the main application window.
+
+	  _NET_WM_WINDOW_TYPE_SPLASH indicates that the window is a splash screen displayed as an application is starting up.
+
+	  _NET_WM_WINDOW_TYPE_DIALOG indicates that this is a dialog window. If _NET_WM_WINDOW_TYPE is not set, then managed windows with WM_TRANSIENT_FOR
+	  set MUST be taken as this type. Override-redirect windows with WM_TRANSIENT_FOR, but without _NET_WM_WINDOW_TYPE must be taken as
+	  _NET_WM_WINDOW_TYPE_NORMAL.
+
+	  _NET_WM_WINDOW_TYPE_DROPDOWN_MENU indicates that the window in question is a dropdown menu, ie., the kind of menu that typically appears when the
+	  user clicks on a menubar, as opposed to a popup menu which typically appears when the user right-clicks on an object. This property is typically
+	  used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_POPUP_MENU indicates that the window in question is a popup menu, ie., the kind of menu that typically appears when the user
+	  right clicks on an object, as opposed to a dropdown menu which typically appears when the user clicks on a menubar. This property is typically
+	  used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_TOOLTIP indicates that the window in question is a tooltip, ie., a short piece of explanatory text that typically appear after
+	  the mouse cursor hovers over an object for a while. This property is typically used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_NOTIFICATION indicates a notification. An example of a notification would be a bubble appearing with informative text such as
+	  "Your laptop is running out of power" etc. This property is typically used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_COMBO should be used on the windows that are popped up by combo boxes. An example is a window that appears below a text field
+	  with a list of suggested completions. This property is typically used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_DND indicates that the window is being dragged. Clients should set this hint when the window in question contains a
+	  representation of an object being dragged from one place to another. An example would be a window containing an icon that is being dragged from
+	  one file manager window to another. This property is typically used on override-redirect windows.
+
+	  _NET_WM_WINDOW_TYPE_NORMAL indicates that this is a normal, top-level window, either managed or override-redirect. Managed windows with neither
+	  _NET_WM_WINDOW_TYPE nor WM_TRANSIENT_FOR set MUST be taken as this type. Override-redirect windows without _NET_WM_WINDOW_TYPE, must be taken as
+	  this type, whether or not they have WM_TRANSIENT_FOR set.
+	*/
+
+	Atom* prop = NULL;
+	ulong items_size;
+
+	get_net_atom_list(window, display, net_wm_window_type, (uchar**)&prop, &items_size);
+
+	((sl_window_mutable*)window)->type = 0;
+
+	for (size_t i = 0; i < items_size; ++i) {
+		if (prop[i] == display->atoms[net_wm_window_type_desktop]) ((sl_window_mutable*)window)->type |= window_type_desktop_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dock]) ((sl_window_mutable*)window)->type |= window_type_dock_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_toolbar]) ((sl_window_mutable*)window)->type |= window_type_toolbar_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_menu]) ((sl_window_mutable*)window)->type |= window_type_menu_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_utility]) ((sl_window_mutable*)window)->type |= window_type_utility_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_splash]) ((sl_window_mutable*)window)->type |= window_type_splash_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dialog]) ((sl_window_mutable*)window)->type |= window_type_dialog_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dropdown_menu]) ((sl_window_mutable*)window)->type |= window_type_dropdown_menu_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_popup_menu]) ((sl_window_mutable*)window)->type |= window_type_popup_menu_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_tooltip]) ((sl_window_mutable*)window)->type |= window_type_tooltip_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_notification]) ((sl_window_mutable*)window)->type |= window_type_notification_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_combo]) ((sl_window_mutable*)window)->type |= window_type_combo_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dnd]) ((sl_window_mutable*)window)->type |= window_type_dnd_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_normal]) ((sl_window_mutable*)window)->type |= window_type_normal_bit;
+	}
+
+	XFree(prop);
+
+	char buffer[256] = "";
+
+	if (window->type & window_type_desktop_bit) strcat(buffer, "desktop ");
+	if (window->type & window_type_dock_bit) strcat(buffer, "dock ");
+	if (window->type & window_type_toolbar_bit) strcat(buffer, "toolbar ");
+	if (window->type & window_type_menu_bit) strcat(buffer, "menu ");
+	if (window->type & window_type_utility_bit) strcat(buffer, "utility ");
+	if (window->type & window_type_splash_bit) strcat(buffer, "splash ");
+	if (window->type & window_type_dialog_bit) strcat(buffer, "dialog ");
+	if (window->type & window_type_dropdown_menu_bit) strcat(buffer, "dropdown_menu ");
+	if (window->type & window_type_popup_menu_bit) strcat(buffer, "popup_menu ");
+	if (window->type & window_type_tooltip_bit) strcat(buffer, "tooltip ");
+	if (window->type & window_type_notification_bit) strcat(buffer, "notification ");
+	if (window->type & window_type_combo_bit) strcat(buffer, "combo ");
+	if (window->type & window_type_dnd_bit) strcat(buffer, "dnd ");
+	if (window->type & window_type_normal_bit) strcat(buffer, "normal ");
+
+	warn_log_va("[%lu] window type: %s", window->x_window, buffer);
+}
+
+void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
+	/*
+	  _NET_WM_STATE, ATOM[]
+
+	  A list of hints describing the window state. Atoms present in the list MUST be considered set, atoms not present in the list MUST be considered
+	  not set. The Window Manager SHOULD honor _NET_WM_STATE whenever a withdrawn window requests to be mapped. A Client wishing to change the state of
+	  a window MUST send a _NET_WM_STATE client message to the root window (see below). The Window Manager MUST keep this property updated to reflect
+	  the current state of the window.
+
+	  The Window Manager should remove the property whenever a window is withdrawn, but it should leave the property in place when it is shutting down,
+	  e.g. in response to losing ownership of the WM_Sn manager selection.
+
+	  Rationale: Removing the property upon window withdrawal helps legacy applications which want to reuse withdrawn windows. Not removing the property
+	  upon shutdown allows the next Window Manager to restore windows to their previous state.
+
+	  Possible atoms are:
+
+	  _NET_WM_STATE_MODAL, ATOM
+	  _NET_WM_STATE_STICKY, ATOM
+	  _NET_WM_STATE_MAXIMIZED_VERT, ATOM
+	  _NET_WM_STATE_MAXIMIZED_HORZ, ATOM
+	  _NET_WM_STATE_SHADED, ATOM
+	  _NET_WM_STATE_SKIP_TASKBAR, ATOM
+	  _NET_WM_STATE_SKIP_PAGER, ATOM
+	  _NET_WM_STATE_HIDDEN, ATOM
+	  _NET_WM_STATE_FULLSCREEN, ATOM
+	  _NET_WM_STATE_ABOVE, ATOM
+	  _NET_WM_STATE_BELOW, ATOM
+	  _NET_WM_STATE_DEMANDS_ATTENTION, ATOM
+	  _NET_WM_STATE_FOCUSED, ATOM
+
+	  An implementation MAY add new atoms to this list. Implementations without extensions MUST ignore any unknown atoms, effectively removing them from
+	  the list. These extension atoms MUST NOT start with the prefix _NET.
+
+	  _NET_WM_STATE_MODAL indicates that this is a modal dialog box. If the WM_TRANSIENT_FOR hint is set to another toplevel window, the dialog is modal
+	  for that window; if WM_TRANSIENT_FOR is not set or set to the root window the dialog is modal for its window group.
+
+	  _NET_WM_STATE_STICKY indicates that the Window Manager SHOULD keep the window's position fixed on the screen, even when the virtual desktop
+	  scrolls.
+
+	  _NET_WM_STATE_MAXIMIZED_{VERT,HORZ} indicates that the window is {vertically,horizontally} maximized.
+
+	  _NET_WM_STATE_SHADED indicates that the window is shaded.
+
+	  _NET_WM_STATE_SKIP_TASKBAR indicates that the window should not be included on a taskbar. This hint should be requested by the application, i.e.
+	  it indicates that the window by nature is never in the taskbar. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the
+	  exact nature of the window.
+
+	  _NET_WM_STATE_SKIP_PAGER indicates that the window should not be included on a Pager. This hint should be requested by the application, i.e. it
+	  indicates that the window by nature is never in the Pager. Applications should not set this hint if _NET_WM_WINDOW_TYPE already conveys the exact
+	  nature of the window.
+
+	  _NET_WM_STATE_HIDDEN should be set by the Window Manager to indicate that a window would not be visible on the screen if its desktop/viewport were
+	  active and its coordinates were within the screen bounds. The canonical example is that minimized windows should be in the _NET_WM_STATE_HIDDEN
+	  state. Pagers and similar applications should use _NET_WM_STATE_HIDDEN instead of WM_STATE to decide whether to display a window in miniature
+	  representations of the windows on a desktop.
+
+	  Implementation note: if an Application asks to toggle _NET_WM_STATE_HIDDEN the Window Manager should probably just ignore the request, since
+	  _NET_WM_STATE_HIDDEN is a function of some other aspect of the window such as minimization, rather than an independent state.
+
+	  _NET_WM_STATE_FULLSCREEN indicates that the window should fill the entire screen and have no window decorations. Additionally the Window Manager
+	  is responsible for restoring the original geometry after a switch from fullscreen back to normal window. For example, a presentation program would
+	  use this hint.
+
+	  _NET_WM_STATE_ABOVE indicates that the window should be on top of most windows (see the section called “Stacking order” for details).
+
+	  _NET_WM_STATE_BELOW indicates that the window should be below most windows (see the section called “Stacking order” for details).
+
+	  _NET_WM_STATE_ABOVE and _NET_WM_STATE_BELOW are mainly meant for user preferences and should not be used by applications e.g. for drawing
+	  attention to their dialogs (the Urgency hint should be used in that case, see the section called “Urgency”).'
+
+	  _NET_WM_STATE_DEMANDS_ATTENTION indicates that some action in or with the window happened. For example, it may be set by the Window Manager if the
+	  window requested activation but the Window Manager refused it, or the application may set it if it finished some work. This state may be set by
+	  both the Client and the Window Manager. It should be unset by the Window Manager when it decides the window got the required attention (usually,
+	  that it got activated).
+
+	  _NET_WM_STATE_FOCUSED indicates whether the window's decorations are drawn in an active state. Clients MUST regard it as a read-only hint. It
+	  cannot be set at map time or changed via a _NET_WM_STATE client message. The window given by _NET_ACTIVE_WINDOW will usually have this hint, but
+	  at times other windows may as well, if they have a strong association with the active window and will be considered as a unit with it by the user.
+	  Clients that modify the appearance of internal elements when a toplevel has keyboard focus SHOULD check for the availability of this state in
+	  _NET_SUPPORTED and, if it is available, use it in preference to tracking focus via FocusIn events. By doing so they will match the window
+	  decorations and accurately reflect the intentions of the Window Manager.
+
+	  To change the state of a mapped window, a Client MUST send a _NET_WM_STATE client message to the root window:
+
+	   window  = the respective client window
+	   message_type = _NET_WM_STATE
+	   format = 32
+	   data.l[0] = the action, as listed below
+	   data.l[1] = first property to alter
+	   data.l[2] = second property to alter
+	   data.l[3] = source indication
+	   other data.l[] elements = 0
+
+	  This message allows two properties to be changed simultaneously, specifically to allow both horizontal and vertical maximization to be altered
+	  together. l[2] MUST be set to zero if only one property is to be changed. See the section called “Source indication in requests” for details on
+	  the source indication. l[0], the action, MUST be one of:
+
+	  _NET_WM_STATE_REMOVE        0     remove/unset property
+	  _NET_WM_STATE_ADD           1     add/set property
+	  _NET_WM_STATE_TOGGLE        2     toggle property
+
+	  See also the implementation notes on urgency and fixed size windows.
+	*/
+
+	Atom* prop = NULL;
+	ulong items_size;
+
+	get_net_atom_list(window, display, net_wm_window_type, (uchar**)&prop, &items_size);
+
+	((sl_window_mutable*)window)->state = 0;
+
+	for (size_t i = 0; i < items_size; ++i) {
+		if (prop[i] == display->atoms[net_wm_state_modal]) ((sl_window_mutable*)window)->state |= window_state_modal_bit;
+		if (prop[i] == display->atoms[net_wm_state_sticky]) ((sl_window_mutable*)window)->state |= window_state_sticky_bit;
+		if (prop[i] == display->atoms[net_wm_state_maximized_vert]) ((sl_window_mutable*)window)->state |= window_state_maximized_vert_bit;
+		if (prop[i] == display->atoms[net_wm_state_maximized_horz]) ((sl_window_mutable*)window)->state |= window_state_maximized_horz_bit;
+		if (prop[i] == display->atoms[net_wm_state_shaded]) ((sl_window_mutable*)window)->state |= window_state_shaded_bit;
+		if (prop[i] == display->atoms[net_wm_state_skip_taskbar]) ((sl_window_mutable*)window)->state |= window_state_skip_taskbar_bit;
+		if (prop[i] == display->atoms[net_wm_state_skip_pager]) ((sl_window_mutable*)window)->state |= window_state_skip_pager_bit;
+		if (prop[i] == display->atoms[net_wm_state_hidden]) ((sl_window_mutable*)window)->state |= window_state_hidden_bit;
+		if (prop[i] == display->atoms[net_wm_state_fullscreen]) ((sl_window_mutable*)window)->state |= window_state_fullscreen_bit;
+		if (prop[i] == display->atoms[net_wm_state_above]) ((sl_window_mutable*)window)->state |= window_state_above_bit;
+		if (prop[i] == display->atoms[net_wm_state_below]) ((sl_window_mutable*)window)->state |= window_state_below_bit;
+		if (prop[i] == display->atoms[net_wm_state_demands_attention]) ((sl_window_mutable*)window)->state |= window_state_demands_attention_bit;
+		if (prop[i] == display->atoms[net_wm_state_focused]) ((sl_window_mutable*)window)->state |= window_state_focused_bit;
+	}
+
+	XFree(prop);
+
+	char buffer[256] = "";
+
+	if (window->state & window_state_modal_bit) strcat(buffer, "modal ");
+	if (window->state & window_state_sticky_bit) strcat(buffer, "sticky ");
+	if (window->state & window_state_maximized_vert_bit) strcat(buffer, "maximized_vert ");
+	if (window->state & window_state_maximized_horz_bit) strcat(buffer, "maximized_horz ");
+	if (window->state & window_state_shaded_bit) strcat(buffer, "shaded ");
+	if (window->state & window_state_skip_taskbar_bit) strcat(buffer, "skip_taskbar ");
+	if (window->state & window_state_skip_pager_bit) strcat(buffer, "skip_pager ");
+	if (window->state & window_state_hidden_bit) strcat(buffer, "hidden ");
+	if (window->state & window_state_fullscreen_bit) strcat(buffer, "fullscreen ");
+	if (window->state & window_state_above_bit) strcat(buffer, "above ");
+	if (window->state & window_state_below_bit) strcat(buffer, "below ");
+	if (window->state & window_state_demands_attention_bit) strcat(buffer, "demands_attention ");
+	if (window->state & window_state_focused_bit) strcat(buffer, "focused ");
+
+	warn_log_va("[%lu] window state: %s", window->x_window, buffer);
+}
+
+void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
+	/*
+	  _NET_WM_ALLOWED_ACTIONS, ATOM[]
+
+	  A list of atoms indicating user operations that the Window Manager supports for this window. Atoms present in the list indicate allowed actions,
+	  atoms not present in the list indicate actions that are not supported for this window. The Window Manager MUST keep this property updated to
+	  reflect the actions which are currently "active" or "sensitive" for a window. Taskbars, Pagers, and other tools use _NET_WM_ALLOWED_ACTIONS to
+	  decide which actions should be made available to the user.
+
+	  Possible atoms are:
+
+	  _NET_WM_ACTION_MOVE, ATOM
+	  _NET_WM_ACTION_RESIZE, ATOM
+	  _NET_WM_ACTION_MINIMIZE, ATOM
+	  _NET_WM_ACTION_SHADE, ATOM
+	  _NET_WM_ACTION_STICK, ATOM
+	  _NET_WM_ACTION_MAXIMIZE_HORZ, ATOM
+	  _NET_WM_ACTION_MAXIMIZE_VERT, ATOM
+	  _NET_WM_ACTION_FULLSCREEN, ATOM
+	  _NET_WM_ACTION_CHANGE_DESKTOP, ATOM
+	  _NET_WM_ACTION_CLOSE, ATOM
+	  _NET_WM_ACTION_ABOVE, ATOM
+	  _NET_WM_ACTION_BELOW, ATOM
+
+	  An implementation MAY add new atoms to this list. Implementations without extensions MUST ignore any unknown atoms, effectively removing them from
+	  the list. These extension atoms MUST NOT start with the prefix _NET.
+
+	  Note that the actions listed here are those that the Window Manager will honor for this window. The operations must still be requested through the
+	  normal mechanisms outlined in this specification. For example, _NET_WM_ACTION_CLOSE does not mean that clients can send a WM_DELETE_WINDOW message
+	  to this window; it means that clients can use a _NET_CLOSE_WINDOW message to ask the Window Manager to do so.
+
+	  Window Managers SHOULD ignore the value of _NET_WM_ALLOWED_ACTIONS when they initially manage a window. This value may be left over from a
+	  previous Window Manager with different policies.
+
+	  _NET_WM_ACTION_MOVE indicates that the window may be moved around the screen.
+
+	  _NET_WM_ACTION_RESIZE indicates that the window may be resized. (Implementation note: Window Managers can identify a non-resizable window because
+	  its minimum and maximum size in WM_NORMAL_HINTS will be the same.)
+
+	  _NET_WM_ACTION_MINIMIZE indicates that the window may be iconified.
+
+	  _NET_WM_ACTION_SHADE indicates that the window may be shaded.
+
+	  _NET_WM_ACTION_STICK indicates that the window may have its sticky state toggled (as for _NET_WM_STATE_STICKY). Note that this state has to do
+	  with viewports, not desktops.
+
+	  _NET_WM_ACTION_MAXIMIZE_HORZ indicates that the window may be maximized horizontally.
+
+	  _NET_WM_ACTION_MAXIMIZE_VERT indicates that the window may be maximized vertically.
+
+	  _NET_WM_ACTION_FULLSCREEN indicates that the window may be brought to fullscreen state.
+
+	  _NET_WM_ACTION_CHANGE_DESKTOP indicates that the window may be moved between desktops.
+
+	  _NET_WM_ACTION_CLOSE indicates that the window may be closed (i.e. a _NET_CLOSE_WINDOW message may be sent).
+
+	  _NET_WM_ACTION_ABOVE indicates that the window may placed in the "above" layer of windows (i.e. will respond to _NET_WM_STATE_ABOVE changes; see
+	  also the section called “Stacking order” for details).
+
+	  _NET_WM_ACTION_BELOW indicates that the window may placed in the "below" layer of windows (i.e. will respond to _NET_WM_STATE_BELOW changes; see
+	  also the section called “Stacking order” for details)).
+	*/
+
+	Atom* prop = NULL;
+	ulong items_size;
+
+	get_net_atom_list(window, display, net_wm_allowed_actions, (uchar**)&prop, &items_size);
+
 	((sl_window_mutable*)window)->allowed_actions = 0;
 
-	for (;;) {
-		if (*(Atom*)prop == display->atoms[net_wm_action_move]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_move_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_resize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_resize_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_minimize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_minimize_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_shade]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_shade_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_stick]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_stick_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_maximize_horz]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_horz_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_maximize_vert]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_vert_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_fullscreen]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_fullscreen_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_change_desktop]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_change_desktop_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_close]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_close_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_above]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_above_bit;
-		if (*(Atom*)prop == display->atoms[net_wm_action_below]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_below_bit;
-
-		XFree(prop);
-
-		if (bytes_after == 0) break;
-
-		++offset;
-		XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[type_atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
+	for (size_t i = 0; i < items_size; ++i) {
+		if (prop[i] == display->atoms[net_wm_action_move]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_move_bit;
+		if (prop[i] == display->atoms[net_wm_action_resize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_resize_bit;
+		if (prop[i] == display->atoms[net_wm_action_minimize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_minimize_bit;
+		if (prop[i] == display->atoms[net_wm_action_shade]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_shade_bit;
+		if (prop[i] == display->atoms[net_wm_action_stick]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_stick_bit;
+		if (prop[i] == display->atoms[net_wm_action_maximize_horz]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_horz_bit;
+		if (prop[i] == display->atoms[net_wm_action_maximize_vert]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_vert_bit;
+		if (prop[i] == display->atoms[net_wm_action_fullscreen]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_fullscreen_bit;
+		if (prop[i] == display->atoms[net_wm_action_change_desktop]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_change_desktop_bit;
+		if (prop[i] == display->atoms[net_wm_action_close]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_close_bit;
+		if (prop[i] == display->atoms[net_wm_action_above]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_above_bit;
+		if (prop[i] == display->atoms[net_wm_action_below]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_below_bit;
 	}
+
+	XFree(prop);
 
 	char buffer[256] = "";
 
@@ -1067,7 +1250,9 @@ void sl_window_set_net_wm_strut (M_maybe_unused sl_window* window, M_maybe_unuse
 	/*
 	  _NET_WM_STRUT, left, right, top, bottom, CARDINAL[4]/32
 
-	  This property is equivalent to a _NET_WM_STRUT_PARTIAL property where all start values are 0 and all end values are the height or width of the logical screen. _NET_WM_STRUT_PARTIAL was introduced later than _NET_WM_STRUT, however, so clients MAY set this property in addition to _NET_WM_STRUT_PARTIAL to ensure backward compatibility with Window Managers supporting older versions of the Specification.
+	  This property is equivalent to a _NET_WM_STRUT_PARTIAL property where all start values are 0 and all end values are the height or width of the
+	  logical screen. _NET_WM_STRUT_PARTIAL was introduced later than _NET_WM_STRUT, however, so clients MAY set this property in addition to
+	  _NET_WM_STRUT_PARTIAL to ensure backward compatibility with Window Managers supporting older versions of the Specification.
 	*/
 
 	warn_log("todo: _net_wm_strut");
@@ -1079,21 +1264,34 @@ void sl_window_set_net_wm_strut_partial (M_maybe_unused sl_window* window, M_may
 	  right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x,
 	  bottom_end_x,CARDINAL[12]/32
 
-	  This property MUST be set by the Client if the window is to reserve space at the edge of the screen. The property contains 4 cardinals specifying the width of the reserved area at each border of the screen, and an additional 8 cardinals specifying the beginning and end corresponding to each of the four struts. The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x. All coordinates are
-	  root window coordinates. The client MAY change this property at any time, therefore the Window Manager MUST watch for property notify events if the Window Manager uses this property to assign special semantics to the window.
+	  This property MUST be set by the Client if the window is to reserve space at the edge of the screen. The property contains 4 cardinals specifying
+	  the width of the reserved area at each border of the screen, and an additional 8 cardinals specifying the beginning and end corresponding to each
+	  of the four struts. The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x,
+	  top_end_x, bottom_start_x, bottom_end_x. All coordinates are root window coordinates. The client MAY change this property at any time, therefore
+	  the Window Manager MUST watch for property notify events if the Window Manager uses this property to assign special semantics to the window.
 
-	  If both this property and the _NET_WM_STRUT property are set, the Window Manager MUST ignore the _NET_WM_STRUT property values and use instead the values for _NET_WM_STRUT_PARTIAL. This will ensure that Clients can safely set both properties without giving up the improved semantics of the new property.
+	  If both this property and the _NET_WM_STRUT property are set, the Window Manager MUST ignore the _NET_WM_STRUT property values and use instead the
+	  values for _NET_WM_STRUT_PARTIAL. This will ensure that Clients can safely set both properties without giving up the improved semantics of the new
+	  property.
 
-	  The purpose of struts is to reserve space at the borders of the desktop. This is very useful for a docking area, a taskbar or a panel, for instance. The Window Manager should take this reserved area into account when constraining window positions - maximized windows, for example, should not cover that area.
+	  The purpose of struts is to reserve space at the borders of the desktop. This is very useful for a docking area, a taskbar or a panel, for
+	  instance. The Window Manager should take this reserved area into account when constraining window positions - maximized windows, for example,
+	  should not cover that area.
 
-	  The start and end values associated with each strut allow areas to be reserved which do not span the entire width or height of the screen. Struts MUST be specified in root window coordinates, that is, they are not relative to the edges of any view port or Xinerama monitor.
+	  The start and end values associated with each strut allow areas to be reserved which do not span the entire width or height of the screen. Struts
+	  MUST be specified in root window coordinates, that is, they are not relative to the edges of any view port or Xinerama monitor.
 
-	  For example, for a panel-style Client appearing at the bottom of the screen, 50 pixels tall, and occupying the space from 200-600 pixels from the left of the screen edge would set a bottom strut of 50, and set bottom_start_x to 200 and bottom_end_x to 600. Another example is a panel on a screen using the Xinerama extension. Assume that the set up uses two monitors, one running at 1280x1024 and the other to the right running at 1024x768, with the top edge of the two physical displays aligned.
-	  If the panel wants to fill the entire bottom edge of the smaller display with a panel 50 pixels tall, it should set a bottom strut of 306, with bottom_start_x of 1280, and bottom_end_x of 2303. Note that the strut is relative to the screen edge, and not the edge of the xinerama monitor.
+	  For example, for a panel-style Client appearing at the bottom of the screen, 50 pixels tall, and occupying the space from 200-600 pixels from the
+	  left of the screen edge would set a bottom strut of 50, and set bottom_start_x to 200 and bottom_end_x to 600. Another example is a panel on a
+	  screen using the Xinerama extension. Assume that the set up uses two monitors, one running at 1280x1024 and the other to the right running at
+	  1024x768, with the top edge of the two physical displays aligned. If the panel wants to fill the entire bottom edge of the smaller display with a
+	  panel 50 pixels tall, it should set a bottom strut of 306, with bottom_start_x of 1280, and bottom_end_x of 2303. Note that the strut is relative
+	  to the screen edge, and not the edge of the xinerama monitor.
 
 	  Rationale: A simple "do not cover" hint is not enough for dealing with e.g. auto-hide panels.
 
-	  Notes: An auto-hide panel SHOULD set the strut to be its minimum, hidden size. A "corner" panel that does not extend for the full length of a screen border SHOULD only set one strut.
+	  Notes: An auto-hide panel SHOULD set the strut to be its minimum, hidden size. A "corner" panel that does not extend for the full length of a
+	  screen border SHOULD only set one strut.
 	*/
 
 	warn_log("todo: _net_wm_strut_partial");
@@ -1103,7 +1301,8 @@ void sl_window_set_net_wm_icon_geometry (M_maybe_unused sl_window* window, M_may
 	/*
 	  _NET_WM_ICON_GEOMETRY, x, y, width, height, CARDINAL[4]/32
 
-	  This optional property MAY be set by stand alone tools like a taskbar or an iconbox. It specifies the geometry of a possible icon in case the window is iconified.
+	  This optional property MAY be set by stand alone tools like a taskbar or an iconbox. It specifies the geometry of a possible icon in case the
+	  window is iconified.
 
 	  Rationale: This makes it possible for a Window Manager to display a nice animation like morphing the window into its icon.
 	*/
@@ -1115,9 +1314,11 @@ void sl_window_set_net_wm_icon (M_maybe_unused sl_window* window, M_maybe_unused
 	/*
 	  _NET_WM_ICON CARDINAL[][2+n]/32
 
-	  This is an array of possible icons for the client. This specification does not stipulate what size these icons should be, but individual desktop environments or toolkits may do so. The Window Manager MAY scale any of these icons to an appropriate size.
+	  This is an array of possible icons for the client. This specification does not stipulate what size these icons should be, but individual desktop
+	  environments or toolkits may do so. The Window Manager MAY scale any of these icons to an appropriate size.
 
-	  This is an array of 32bit packed CARDINAL ARGB with high byte being A, low byte being B. The first two cardinals are width, height. Data is in rows, left to right and top to bottom.
+	  This is an array of 32bit packed CARDINAL ARGB with high byte being A, low byte being B. The first two cardinals are width, height. Data is in
+	  rows, left to right and top to bottom.
 	*/
 
 	warn_log("todo: _net_wm_icon");
@@ -1127,9 +1328,12 @@ void sl_window_set_net_wm_pid (M_maybe_unused sl_window* window, M_maybe_unused 
 	/*
 	  _NET_WM_PID CARDINAL/32
 
-	  If set, this property MUST contain the process ID of the client owning this window. This MAY be used by the Window Manager to kill windows which do not respond to the _NET_WM_PING protocol.
+	  If set, this property MUST contain the process ID of the client owning this window. This MAY be used by the Window Manager to kill windows which
+	  do not respond to the _NET_WM_PING protocol.
 
-	  If _NET_WM_PID is set, the ICCCM-specified property WM_CLIENT_MACHINE MUST also be set. While the ICCCM only requests that WM_CLIENT_MACHINE is set “ to a string that forms the name of the machine running the client as seen from the machine running the server” conformance to this specification requires that WM_CLIENT_MACHINE be set to the fully-qualified domain name of the client's host.
+	  If _NET_WM_PID is set, the ICCCM-specified property WM_CLIENT_MACHINE MUST also be set. While the ICCCM only requests that WM_CLIENT_MACHINE is
+	  set “ to a string that forms the name of the machine running the client as seen from the machine running the server” conformance to this
+	  specification requires that WM_CLIENT_MACHINE be set to the fully-qualified domain name of the client's host.
 
 	  See also the implementation notes on killing hung processes.
 	*/
@@ -1141,7 +1345,8 @@ void sl_window_set_net_wm_handled_icons (M_maybe_unused sl_window* window, M_may
 	/*
 	  _NET_WM_HANDLED_ICONS
 
-	  This property can be set by a Pager on one of its own toplevel windows to indicate that the Window Manager need not provide icons for iconified windows, for example if it is a taskbar and provides buttons for iconified windows.
+	  This property can be set by a Pager on one of its own toplevel windows to indicate that the Window Manager need not provide icons for iconified
+	  windows, for example if it is a taskbar and provides buttons for iconified windows.
 	*/
 
 	warn_log("todo: _net_wm_handled_icons");
@@ -1153,13 +1358,20 @@ void sl_window_set_net_wm_user_time (M_maybe_unused sl_window* window, M_maybe_u
 
 	  This property contains the XServer time at which last user activity in this window took place.
 
-	  Clients should set this property on every new toplevel window (or on the window pointed out by the _NET_WM_USER_TIME_WINDOW property), before mapping the window, to the timestamp of the user interaction that caused the window to appear. A client that only deals with core events, might, for example, use the timestamp of the last KeyPress or ButtonPress event. ButtonRelease and KeyRelease events should not generally be considered to be user interaction, because an application may receive
-	  KeyRelease events from global keybindings, and generally release events may have later timestamp than actions that were triggered by the matching press events. Clients can obtain the timestamp that caused its first window to appear from the DESKTOP_STARTUP_ID environment variable, if the app was launched with startup notification. If the client does not know the timestamp of the user interaction that caused the first window to appear (e.g. because it was not launched with startup
-	  notification), then it should not set the property for that window. The special value of zero on a newly mapped window can be used to request that the window not be initially focused when it is mapped.
+	  Clients should set this property on every new toplevel window (or on the window pointed out by the _NET_WM_USER_TIME_WINDOW property), before
+	  mapping the window, to the timestamp of the user interaction that caused the window to appear. A client that only deals with core events, might,
+	  for example, use the timestamp of the last KeyPress or ButtonPress event. ButtonRelease and KeyRelease events should not generally be considered
+	  to be user interaction, because an application may receive KeyRelease events from global keybindings, and generally release events may have later
+	  timestamp than actions that were triggered by the matching press events. Clients can obtain the timestamp that caused its first window to appear
+	  from the DESKTOP_STARTUP_ID environment variable, if the app was launched with startup notification. If the client does not know the timestamp of
+	  the user interaction that caused the first window to appear (e.g. because it was not launched with startup notification), then it should not set
+	  the property for that window. The special value of zero on a newly mapped window can be used to request that the window not be initially focused
+	  when it is mapped.
 
 	  If the client has the active window, it should also update this property on the window whenever there's user activity.
 
-	  Rationale: This property allows a Window Manager to alter the focus, stacking, and/or placement behavior of windows when they are mapped depending on whether the new window was created by a user action or is a "pop-up" window activated by a timer or some other event.
+	  Rationale: This property allows a Window Manager to alter the focus, stacking, and/or placement behavior of windows when they are mapped depending
+	  on whether the new window was created by a user action or is a "pop-up" window activated by a timer or some other event.
 	*/
 
 	warn_log("todo: _net_wm_user_time");
@@ -1169,9 +1381,11 @@ void sl_window_set_net_wm_user_time_window (M_maybe_unused sl_window* window, M_
 	/*
 	  _NET_WM_USER_TIME_WINDOW WINDOW/32
 
-	  This property contains the XID of a window on which the client sets the _NET_WM_USER_TIME property. Clients should check whether the window manager supports _NET_WM_USER_TIME_WINDOW and fall back to setting the _NET_WM_USER_TIME property on the toplevel window if it doesn't.
+	  This property contains the XID of a window on which the client sets the _NET_WM_USER_TIME property. Clients should check whether the window
+	  manager supports _NET_WM_USER_TIME_WINDOW and fall back to setting the _NET_WM_USER_TIME property on the toplevel window if it doesn't.
 
-	  Rationale: Storing the frequently changing _NET_WM_USER_TIME property on the toplevel window itself causes every application that is interested in any of the properties of that window to be woken up on every keypress, which is particularly bad for laptops running on battery power.
+	  Rationale: Storing the frequently changing _NET_WM_USER_TIME property on the toplevel window itself causes every application that is interested in
+	  any of the properties of that window to be woken up on every keypress, which is particularly bad for laptops running on battery power.
 	*/
 
 	warn_log("todo: _net_wm_user_time_window");
@@ -1181,7 +1395,8 @@ void sl_window_set_net_frame_extents (M_maybe_unused sl_window* window, M_maybe_
 	/*
 	  _NET_FRAME_EXTENTS, left, right, top, bottom, CARDINAL[4]/32
 
-	  The Window Manager MUST set _NET_FRAME_EXTENTS to the extents of the window's frame. left, right, top and bottom are widths of the respective borders added by the Window Manager.
+	  The Window Manager MUST set _NET_FRAME_EXTENTS to the extents of the window's frame. left, right, top and bottom are widths of the respective
+	  borders added by the Window Manager.
 	*/
 
 	warn_log("todo: _net_frame_extents");
@@ -1191,8 +1406,12 @@ void sl_window_set_net_wm_opaque_region (M_maybe_unused sl_window* window, M_may
 	/*
 	  _NET_WM_OPAQUE_REGION, x, y, width, height, CARDINAL[][4]/32
 
-	  The Client MAY set this property to a list of 4-tuples [x, y, width, height], each representing a rectangle in window coordinates where the pixels of the window's contents have a fully opaque alpha value. If the window is drawn by the compositor without adding any transparency, then such a rectangle will occlude whatever is drawn behind it. When the window has an RGB visual rather than an ARGB visual, this property is not typically useful, since the effective opaque region of a window is
-	  exactly the bounding region of the window as set via the shape extension. For windows with an ARGB visual and also a bounding region set via the shape extension, the effective opaque region is given by the intersection of the region set by this property and the bounding region set via the shape extension. The compositing manager MAY ignore this hint.
+	  The Client MAY set this property to a list of 4-tuples [x, y, width, height], each representing a rectangle in window coordinates where the pixels
+	  of the window's contents have a fully opaque alpha value. If the window is drawn by the compositor without adding any transparency, then such a
+	  rectangle will occlude whatever is drawn behind it. When the window has an RGB visual rather than an ARGB visual, this property is not typically
+	  useful, since the effective opaque region of a window is exactly the bounding region of the window as set via the shape extension. For windows
+	  with an ARGB visual and also a bounding region set via the shape extension, the effective opaque region is given by the intersection of the region
+	  set by this property and the bounding region set via the shape extension. The compositing manager MAY ignore this hint.
 
 	  Rationale: This gives the compositing manager more room for optimizations. For example, it can avoid drawing occluded portions behind the window.
 	*/
@@ -1204,10 +1423,14 @@ void sl_window_set_net_wm_bypass_compositor (M_maybe_unused sl_window* window, M
 	/*
 	  _NET_WM_BYPASS_COMPOSITOR, CARDINAL/32
 
-	  The Client MAY set this property to hint the compositor that the window would benefit from running uncomposited (i.e not redirected offscreen) or that the window might be hurt from being uncomposited. A value of 0 indicates no preference. A value of 1 hints the compositor to disabling compositing of this window. A value of 2 hints the compositor to not disabling compositing of this window. All other values are reserved and should be treated the same as a value of 0. The compositing manager
-	  MAY bypass compositing for both fullscreen and non-fullscreen windows if bypassing is requested, but MUST NOT bypass if it would cause differences from the composited appearance.
+	  The Client MAY set this property to hint the compositor that the window would benefit from running uncomposited (i.e not redirected offscreen) or
+	  that the window might be hurt from being uncomposited. A value of 0 indicates no preference. A value of 1 hints the compositor to disabling
+	  compositing of this window. A value of 2 hints the compositor to not disabling compositing of this window. All other values are reserved and
+	  should be treated the same as a value of 0. The compositing manager MAY bypass compositing for both fullscreen and non-fullscreen windows if
+	  bypassing is requested, but MUST NOT bypass if it would cause differences from the composited appearance.
 
-	  Rationale: Some applications like fullscreen games might want run without the overhead of being redirected offscreen (to avoid extra copies) and thus perform better. An application which creates pop-up windows might always want to run composited to avoid exposes.
+	  Rationale: Some applications like fullscreen games might want run without the overhead of being redirected offscreen (to avoid extra copies) and
+	  thus perform better. An application which creates pop-up windows might always want to run composited to avoid exposes.
 	*/
 
 	warn_log("todo: _net_wm_bypass_compositor");

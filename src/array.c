@@ -209,7 +209,8 @@ void sl_array_set (sl_array* array, ...) {
 	va_end(va);
 }
 
-static void merge (void(set)(void*, void*), bool(compare)(void*, void*), u8* destination, u8* source, size_t left, size_t right, size_t end, size_t size) {
+static void
+merge (void(set)(void*, void*), bool(compare)(void*, void*), u8* destination, u8* source, size_t left, size_t right, size_t end, size_t size) {
 	size_t i = left, j = right;
 	for (size_t k = left; k < end; ++k) {
 		if (i < right && (compare((void*)source + i * size, (void*)source + j * size) || j == end)) {

@@ -57,7 +57,8 @@ static void button_press_or_release (sl_display* display, XButtonPressedEvent* e
 	display->user_input_since_last_workspace_change = true;
 
 	if (event->window == display->root) {
-		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask)) sl_focus_raised_window(display, event->time);
+		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask))
+			sl_focus_raised_window(display, event->time);
 
 		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
 			display->mouse.x = event->x_root;
@@ -70,7 +71,8 @@ static void button_press_or_release (sl_display* display, XButtonPressedEvent* e
 	window_handle_start {
 		if (!window->mapped || window->workspace != display->current_workspace) return;
 
-		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask)) sl_swap_window_with_raised_window(display, i, event->time);
+		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask))
+			sl_swap_window_with_raised_window(display, i, event->time);
 
 		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
 			display->mouse.x = event->x_root;
@@ -384,7 +386,8 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	window_handle_start {
 		window->mapped = false;
 
-		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == i) display->focused_window_index = M_invalid_window_index;
+		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == i)
+			display->focused_window_index = M_invalid_window_index;
 		if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) sl_cycle_windows_down(display, CurrentTime);
 
 		return;
@@ -441,14 +444,26 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	*/
 
 	window_handle_start {
-		if (window->maximized) return sl_configure_window(display, window, CWX | CWY | CWWidth | CWHeight, (XWindowChanges) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height});
+		if (window->maximized)
+			return sl_configure_window(
+			display, window, CWX | CWY | CWWidth | CWHeight,
+			(XWindowChanges
+			) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height}
+			);
 
 		if (event->value_mask & (CWX | CWY | CWWidth | CWHeight)) {
 			if (event->value_mask & CWX) window->saved_dimensions.x = event->x;
 			if (event->value_mask & CWY) window->saved_dimensions.y = event->y;
 			if (event->value_mask & CWWidth) window->saved_dimensions.width = event->width;
 			if (event->value_mask & CWHeight) window->saved_dimensions.height = event->height;
-			return sl_configure_window(display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight), (XWindowChanges) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height});
+			return sl_configure_window(
+			display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight),
+			(XWindowChanges) {
+			.x = window->saved_dimensions.x,
+			.y = window->saved_dimensions.y,
+			.width = window->saved_dimensions.width,
+			.height = window->saved_dimensions.height}
+			);
 		}
 
 		return;
@@ -498,13 +513,22 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 
 	sl_window_set_all_properties(window, display);
 
-	XSelectInput(display->x_display, window->x_window, EnterWindowMask | LeaveWindowMask | FocusChangeMask | PropertyChangeMask | ResizeRedirectMask | StructureNotifyMask);
+	XSelectInput(
+	display->x_display, window->x_window,
+	EnterWindowMask | LeaveWindowMask | FocusChangeMask | PropertyChangeMask | ResizeRedirectMask | StructureNotifyMask
+	);
 
 	uint const modifiers[] = {0, LockMask, display->numlockmask, LockMask | display->numlockmask};
 	for (unsigned i = 0; i < 4; ++i) {
 		XGrabButton(display->x_display, Button1, modifiers[i], window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None);
-		XGrabButton(display->x_display, Button1, Mod4Mask | modifiers[i], window->x_window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None);
-		XGrabButton(display->x_display, Button1, Mod4Mask | ControlMask | modifiers[i], window->x_window, false, ButtonPressMask | PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None);
+		XGrabButton(
+		display->x_display, Button1, Mod4Mask | modifiers[i], window->x_window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+		GrabModeAsync, GrabModeAsync, None, None
+		);
+		XGrabButton(
+		display->x_display, Button1, Mod4Mask | ControlMask | modifiers[i], window->x_window, false, ButtonPressMask | PointerMotionMask, GrabModeAsync,
+		GrabModeAsync, None, None
+		);
 	}
 
 	sl_focus_and_raise_window(display, index, CurrentTime);
@@ -821,7 +845,8 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			char filename[128];
 			sprintf(filename, "/home/slidey/media/screenshot/%s:%lu.webp", strftime_string, timespec.tv_nsec);
 			warn_log("this only works for display 0");
-			char* const args[] = {"ffmpeg", "-n", "-v", "0", "-f", "x11grab", "-i", ":0", "-frames:v", "1", "-lossless", "1", "-pix_fmt", "bgra", filename, 0};
+			char* const args[] = {"ffmpeg",    "-n", "-v",        "0", "-f",       "x11grab", "-i",     ":0",
+			                      "-frames:v", "1",  "-lossless", "1", "-pix_fmt", "bgra",    filename, 0};
 			return exec_program(display->x_display, args);
 		}
 

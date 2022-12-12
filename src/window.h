@@ -39,6 +39,39 @@ enum {
 	all_allowed_actions = 0b111111111111
 };
 
+enum {
+	window_type_desktop_bit = 1 << 0,
+	window_type_dock_bit = 1 << 1,
+	window_type_toolbar_bit = 1 << 2,
+	window_type_menu_bit = 1 << 3,
+	window_type_utility_bit = 1 << 4,
+	window_type_splash_bit = 1 << 5,
+	window_type_dialog_bit = 1 << 6,
+	window_type_dropdown_menu_bit = 1 << 7,
+	window_type_popup_menu_bit = 1 << 8,
+	window_type_tooltip_bit = 1 << 9,
+	window_type_notification_bit = 1 << 10,
+	window_type_combo_bit = 1 << 11,
+	window_type_dnd_bit = 1 << 12,
+	window_type_normal_bit = 1 << 13
+};
+
+enum {
+	window_state_modal_bit = 1 << 0,
+	window_state_sticky_bit = 1 << 1,
+	window_state_maximized_vert_bit = 1 << 2,
+	window_state_maximized_horz_bit = 1 << 3,
+	window_state_shaded_bit = 1 << 4,
+	window_state_skip_taskbar_bit = 1 << 5,
+	window_state_skip_pager_bit = 1 << 6,
+	window_state_hidden_bit = 1 << 7,
+	window_state_fullscreen_bit = 1 << 8,
+	window_state_above_bit = 1 << 9,
+	window_state_below_bit = 1 << 10,
+	window_state_demands_attention_bit = 1 << 11,
+	window_state_focused_bit = 1 << 12
+};
+
 struct sl_sized_string {
 	char const* data;
 	size_t const size;
@@ -82,6 +115,8 @@ typedef struct sl_window {
 	struct sl_sized_string const net_wm_icon_name;
 	struct sl_sized_string const net_wm_visible_icon_name;
 
+	u16 const type;
+	u16 const state;
 	u16 const allowed_actions;
 } sl_window;
 
