@@ -714,6 +714,7 @@ void sl_window_erase (sl_display* display, size_t index, Time time) {
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > index) --display->raised_window_index;
 	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > index) --display->focused_window_index;
 
+	sl_window_destroy(sl_window_at(display, index));
 	sl_vector_erase(display->windows, index);
 }
 
@@ -725,5 +726,6 @@ void sl_raised_window_erase (sl_display* display, Time time) {
 	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > old_raised_window_index) --display->raised_window_index;
 	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > old_raised_window_index) --display->focused_window_index;
 
+	sl_window_destroy(sl_window_at(display, old_raised_window_index));
 	sl_vector_erase(display->windows, old_raised_window_index);
 }

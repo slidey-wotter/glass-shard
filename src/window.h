@@ -39,6 +39,16 @@ enum {
 	all_allowed_actions = 0b111111111111
 };
 
+struct sl_sized_ustring {
+	uchar const* data;
+	size_t const size;
+};
+
+struct sl_sized_string {
+	char const* data;
+	size_t const size;
+};
+
 typedef struct sl_window {
 	Window const x_window;
 	bool const started;
@@ -46,20 +56,22 @@ typedef struct sl_window {
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
-	char const name[64];
-	char const icon_name[64];
+	struct sl_sized_ustring const name;
+	struct sl_sized_ustring const icon_name;
 
 	struct sl_window_have_protocols {
 		bool take_focus;
 		bool delete_window;
 	} const have_protocols;
 
-	char const net_wm_name[64];
+	struct sl_sized_string net_wm_name;
 
 	u16 const allowed_actions;
 } sl_window;
 
 extern void sl_window_start (sl_window* window);
+
+extern void sl_window_destroy (sl_window* window);
 
 extern void sl_window_swap (sl_window* lhs, sl_window* rhs);
 

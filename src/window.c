@@ -18,11 +18,22 @@
 
 #include "window.h"
 
+#include <X11/Xatom.h>
 #include <X11/Xutil.h>
 
 #include "compiler-differences.h"
 #include "display.h"
 #include <string.h>
+
+struct sl_sized_ustring_mutable {
+	uchar* data;
+	size_t size;
+};
+
+struct sl_sized_string_mutable {
+	char* data;
+	size_t size;
+};
 
 typedef struct sl_window_mutable {
 	Window x_window;
@@ -31,12 +42,12 @@ typedef struct sl_window_mutable {
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
-	char name[64];
-	char icon_name[64];
+	struct sl_sized_ustring_mutable name;
+	struct sl_sized_ustring_mutable icon_name;
 
 	struct sl_window_have_protocols have_protocols;
 
-	char net_wm_name[64];
+	struct sl_sized_string_mutable net_wm_name;
 
 	u16 allowed_actions;
 } sl_window_mutable;
@@ -44,6 +55,12 @@ typedef struct sl_window_mutable {
 void sl_window_start (sl_window* window) {
 	((sl_window_mutable*)window)->started = true;
 	((sl_window_mutable*)window)->allowed_actions = all_allowed_actions;
+}
+
+void sl_window_destroy (sl_window* window) {
+	if (window->name.data) free(((sl_window_mutable*)window)->name.data);
+	if (window->icon_name.data) free(((sl_window_mutable*)window)->icon_name.data);
+	if (window->net_wm_name.data) free(((sl_window_mutable*)window)->net_wm_name.data);
 }
 
 void sl_window_swap (sl_window* lhs, sl_window* rhs) {
@@ -123,16 +140,18 @@ void sl_set_window_name (sl_window* window, sl_display* display) {
 
 	warn_log("todo: wm_name");
 
-	XTextProperty text_proterty;
+	XTextProperty text_property;
 
-	XGetWMName(display->x_display, window->x_window, &text_proterty);
+	XGetTextProperty(display->x_display, window->x_window, &text_property, XA_WM_NAME);
 
-	warn_log("hardcoding window->name size");
-	for (size_t i = 0; i < 64 && i < text_proterty.nitems; ++i) {
-		((sl_window_mutable*)window)->name[i] = text_proterty.value[i];
-	}
+	if (window->name.data) free(((sl_window_mutable*)window)->name.data);
 
-	warn_log_va("[%lu] name \"%s\"", window->x_window, window->name);
+	warn_log("ignoring encoding and format");
+	((sl_window_mutable*)window)->name.size = text_property.nitems;
+	((sl_window_mutable*)window)->name.data = malloc(sizeof(uchar) * window->name.size);
+	memcpy(((sl_window_mutable*)window)->name.data, text_property.value, window->name.size);
+
+	warn_log_va("[%lu] name: \"%.*s\"", window->x_window, (int)window->name.size, window->name.data);
 }
 
 void sl_set_window_icon_name (sl_window* window, sl_display* display) {
@@ -149,16 +168,16 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 
 	warn_log("todo: wm_icon_name");
 
-	XTextProperty text_proterty;
+	XTextProperty text_property;
 
-	XGetWMIconName(display->x_display, window->x_window, &text_proterty);
+	XGetTextProperty(display->x_display, window->x_window, &text_property, XA_WM_ICON_NAME);
 
-	warn_log("hardcoding window->icon_name size");
-	for (size_t i = 0; i < 64 && i < text_proterty.nitems; ++i) {
-		((sl_window_mutable*)window)->icon_name[i] = text_proterty.value[i];
-	}
+	warn_log("ignoring encoding and format");
+	((sl_window_mutable*)window)->icon_name.size = text_property.nitems;
+	((sl_window_mutable*)window)->icon_name.data = malloc(sizeof(uchar) * window->icon_name.size);
+	memcpy(((sl_window_mutable*)window)->icon_name.data, text_property.value, window->icon_name.size);
 
-	warn_log_va("[%lu] icon_name \"%s\"", window->x_window, window->icon_name);
+	warn_log_va("[%lu] icon_name: \"%.*s\"", window->x_window, (int)window->icon_name.size, window->icon_name.data);
 }
 
 void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -545,9 +564,7 @@ void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
 	ulong bytes_after;
 	uchar* prop = NULL;
 
-	size_t offset = 0;
-
-	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_name], offset, 1, false, display->atoms[utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
+	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_name], 0, 1, false, display->atoms[utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
 		warn_log("XGetWindowProperty does not return Success");
 		return;
 	}
@@ -601,27 +618,18 @@ void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
 	  of trailing unread bytes in the stored property.
 	*/
 
-	size_t i = 0, j = 0;
+	XFree(prop);
 
-	warn_log("hardcoding window->net_wm_name size");
-	for (; i < 64 && j < items_size; ++i) {
-		((sl_window_mutable*)window)->net_wm_name[i] = prop[j];
-		++j;
+	XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_name], 0, 2 + (bytes_after >> 2), false, display->atoms[utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
 
-		if (j == 4) {
-			XFree(prop);
-			if (bytes_after > 0) {
-				j = 0;
-				++offset;
-				XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_name], offset, 1, false, display->atoms[utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
-				continue;
-			}
+	((sl_window_mutable*)window)->net_wm_name.size = items_size;
+	if (window->net_wm_name.data) free(((sl_window_mutable*)window)->net_wm_name.data);
+	((sl_window_mutable*)window)->net_wm_name.data = malloc(window->net_wm_name.size);
+	memcpy(((sl_window_mutable*)window)->net_wm_name.data, prop, window->net_wm_name.size);
 
-			break;
-		}
-	}
+	XFree(prop);
 
-	warn_log_va("[%lu] net_wm_name \"%s\"", window->x_window, window->net_wm_name);
+	warn_log_va("[%lu] net_wm_name \"%.*s\"", window->x_window, (int)window->net_wm_name.size, window->net_wm_name.data);
 }
 
 void sl_window_set_net_wm_visible_name (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
