@@ -36,6 +36,8 @@ typedef struct sl_window {
 		bool take_focus;
 		bool delete_window;
 	} const have_protocols;
+
+	char const net_wm_name[64];
 } sl_window;
 
 extern void sl_window_swap (sl_window* lhs, sl_window* rhs);
@@ -51,3 +53,25 @@ extern void sl_set_window_transient_for (sl_window* window, sl_display* display)
 extern void sl_set_window_protocols (sl_window* window, sl_display* display);
 extern void sl_set_window_colormap_windows (sl_window* window, sl_display* display);
 extern void sl_set_window_client_machine (sl_window* window, sl_display* display);
+
+extern void sl_window_set_net_wm_name (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_visible_name (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_icon_name (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_visible_icon_name (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_desktop (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_window_type (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_state (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_allowed_actions (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_strut (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_strut_partial (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_icon_geometry (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_icon (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_pid (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_handled_icons (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_user_time (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_user_time_window (sl_window* window, sl_display* display);
+extern void sl_window_set_net_frame_extents (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_opaque_region (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_bypass_compositor (sl_window* window, sl_display* display);
+
+extern void sl_window_set_all_properties (sl_window* window, sl_display* display);

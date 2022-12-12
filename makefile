@@ -35,7 +35,7 @@ help:
 build: ./${release_directory}/${exec}
 .PHONY: build
 
-debug-build: ./${debug_directory}/${exec}
+debug-build: ./${debug_directory}/${exec}-debug
 .PHONY: debug-build
 .SILENT: debug-build
 
@@ -45,15 +45,15 @@ run: ./${release_directory}/${exec}
 .PHONY: run
 .SILENT: run
 
-debug-run: ./${debug_directory}/${exec}
+debug-run: ./${debug_directory}/${exec}-debug
 	echo "[startx] $^"
 	startx $^
 .PHONY: debug-run
 .SILENT: debug-run
 
-debug: ./${debug_directory}/${exec}
-	echo "[exec]   gdb -p \$$(pidof ${exec})"
-	gdb -p $$(pidof ${exec})
+debug: ./${debug_directory}/${exec}-debug
+	echo "[exec]   gdb -p \$$(pidof ${exec-debug})"
+	gdb -p $$(pidof ${exec}-debug)
 .PHONY: debug
 .SILENT: debug
 
@@ -62,8 +62,8 @@ clean:
 	rm -f ./${release_directory}/${exec}
 	echo "[clean]  ${release_objects}"
 	rm -f ${release_objects}
-	echo "[clean]  ./${debug_directory}/${exec}"
-	rm -f ./${debug_directory}/${exec}
+	echo "[clean]  ./${debug_directory}/${exec}-debug"
+	rm -f ./${debug_directory}/${exec}-debug
 	echo "[clean]  ${debug_objects}"
 	rm -f ${debug_objects}
 	echo "[clean]  ./.dependencies.mk"
@@ -76,10 +76,10 @@ clean:
 	gcc ${release_objects} -o ./$@ ${ldflags} ${release_ldflags}
 .SILENT: ./${release_directory}/${exec}
 
-./${debug_directory}/${exec}: ./${debug_directory}/${object_directory} ./.dependencies.mk ${debug_objects} ./makefile
+./${debug_directory}/${exec}-debug: ./${debug_directory}/${object_directory} ./.dependencies.mk ${debug_objects} ./makefile
 	echo "[link]   ./$@"
 	gcc ${debug_objects} -o ./$@ ${ldflags} ${debug_ldflags}
-.SILENT: ./${debug_directory}/${exec}
+.SILENT: ./${debug_directory}/${exec}-debug
 
 ./.dependencies.mk: ./generate-dependencies.sh ./${source_directory}/*.c ./${source_directory}/*.h
 	echo "[depgen] ./$@"

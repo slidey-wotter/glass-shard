@@ -59,6 +59,59 @@ sl_window_manager* window_manager () {
 	return &manager;
 }
 
+static void notify_net_supported_impl (sl_display* display, size_t atom_index) {
+	/*
+	  Whenever this spec speaks about “sending a message to the root window”, it is understood that the client is supposed to create a ClientMessage event with the specified contents and send it by using a SendEvent request with the following arguments:
+
+	  destination     root
+	  propagate       False
+	  event-mask      (SubstructureNotify|SubstructureRedirect)
+	  event           the specified ClientMessage
+	*/
+
+	warn_log("todo: serial");
+
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0, /* # of last request processed by server */
+	.send_event = true, /* true if this came from a SendEvent request */
+	.display = display->x_display, /* Display the event was read from */
+	.window = display->root,
+	.message_type = display->atoms[net_supported],
+	.format = 32,
+	.data = {.l = {display->atoms[atom_index], 0, 0, 0, 0}}};
+
+	XSendEvent(display->x_display, display->root, false, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
+}
+
+static void notify_net_supported (sl_display* display) {
+	/*
+	  _NET_SUPPORTED, ATOM[]/32
+
+	  This property MUST be set by the Window Manager to indicate which hints it supports. For example: considering _NET_WM_STATE both this atom and all supported states e.g. _NET_WM_STATE_MODAL, _NET_WM_STATE_STICKY, would be listed. This assumes that backwards incompatible changes will not be made to the hints (without being renamed).
+	*/
+
+	notify_net_supported_impl(display, net_wm_name);
+	notify_net_supported_impl(display, net_wm_visible_name);
+	notify_net_supported_impl(display, net_wm_icon_name);
+	notify_net_supported_impl(display, net_wm_visible_icon_name);
+	notify_net_supported_impl(display, net_wm_desktop);
+	notify_net_supported_impl(display, net_wm_window_type);
+	notify_net_supported_impl(display, net_wm_state);
+	notify_net_supported_impl(display, net_wm_allowed_actions);
+	notify_net_supported_impl(display, net_wm_strut);
+	notify_net_supported_impl(display, net_wm_strut_partial);
+	notify_net_supported_impl(display, net_wm_icon_geometry);
+	notify_net_supported_impl(display, net_wm_icon);
+	notify_net_supported_impl(display, net_wm_pid);
+	notify_net_supported_impl(display, net_wm_handled_icons);
+	notify_net_supported_impl(display, net_wm_user_time);
+	notify_net_supported_impl(display, net_wm_user_time_window);
+	notify_net_supported_impl(display, net_frame_extents);
+	notify_net_supported_impl(display, net_wm_opaque_region);
+	notify_net_supported_impl(display, net_wm_bypass_compositor);
+}
+
 int main () {
 	sl_display* display;
 
@@ -81,23 +134,7 @@ int main () {
 		display = sl_display_create(x_display);
 	}
 
-	// NOTE: we are sending each atom individually instead of 5 at a time for compatibility reasons
-	// sl_notify_supported_atom(display, net_wm_name);
-	// sl_notify_supported_atom(display, net_wm_icon_name);
-	// sl_notify_supported_atom(display, net_wm_desktop);
-	// sl_notify_supported_atom(display, net_wm_window_type);
-	// sl_notify_supported_atom(display, net_wm_state);
-	// sl_notify_supported_atom(display, net_wm_allowed_actions);
-	// sl_notify_supported_atom(display, net_wm_strut);
-	// sl_notify_supported_atom(display, net_wm_strut_partial);
-	// sl_notify_supported_atom(display, net_wm_icon_geometry);
-	// sl_notify_supported_atom(display, net_wm_icon);
-	// sl_notify_supported_atom(display, net_wm_pid);
-	// sl_notify_supported_atom(display, net_wm_handled_icons);
-	// sl_notify_supported_atom(display, net_wm_user_time);
-	// sl_notify_supported_atom(display, net_wm_user_time_window);
-	// sl_notify_supported_atom(display, net_wm_opaque_region);
-	// sl_notify_supported_atom(display, net_wm_bypass_compositor);
+	notify_net_supported(display);
 
 	warn_log("todo: this should be where we create threads for every display and handle each individually");
 	for (XEvent event; !XNextEvent(display->x_display, &event);) {
