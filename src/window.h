@@ -107,6 +107,12 @@ typedef struct sl_window {
 	} const normal_hints;
 
 	struct {
+		bool input;
+		u8 state;
+		bool urgent;
+	} const hints;
+
+	struct {
 		bool take_focus;
 		bool delete_window;
 	} const have_protocols;

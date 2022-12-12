@@ -60,6 +60,12 @@ typedef struct sl_window_mutable {
 		u16 gravity;
 	} normal_hints;
 
+	struct window_hints {
+		bool input;
+		u8 state;
+		bool urgent;
+	} hints;
+
 	struct window_protocols {
 		bool take_focus;
 		bool delete_window;
@@ -488,7 +494,27 @@ void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 	    or by raising it to the top of the stack.
 	*/
 
-	warn_log("todo: wm_normal_hints");
+	((sl_window_mutable*)window)->hints = (struct window_hints) {.input = true, .state = NormalState, .urgent = false};
+
+	XWMHints* hints = XGetWMHints(display->x_display, window->x_window);
+
+	if (!hints) return;
+
+	warn_log("ignoring some of the window's hints");
+
+	if (hints->flags & InputHint) ((sl_window_mutable*)window)->hints.input = hints->input;
+	if (hints->flags & StateHint) ((sl_window_mutable*)window)->hints.state = hints->initial_state;
+	if (hints->flags & 256) ((sl_window_mutable*)window)->hints.urgent = true;
+
+	XFree(hints);
+
+	warn_log_va(
+	"[%lu] window hints: input %s, state %s, urgent %s", window->x_window, window->hints.input ? "true" : "false",
+	window->hints.state == NormalState ? "normal" :
+	window->hints.state == IconicState ? "iconic" :
+	                                     "undefined",
+	window->hints.urgent ? "true" : "false"
+	); // epic clang-format again
 }
 
 void sl_set_window_class (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
