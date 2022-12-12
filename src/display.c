@@ -467,6 +467,11 @@ void sl_unmap_windows_for_current_workspace_except_raised_window (sl_display* di
 }
 
 static void focus_window_impl (sl_display* display, sl_window* window, Time time) {
+	if (!window->hints.input) {
+		// the window must focus itself
+		return;
+	}
+
 	if (!window->have_protocols.take_focus) {
 		XSetInputFocus(display->x_display, window->x_window, RevertToPointerRoot, time);
 		return;
