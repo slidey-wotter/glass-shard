@@ -472,6 +472,21 @@ static void focus_window_impl (sl_display* display, sl_window* window, Time time
 		return;
 	}
 
+	{
+		warn_log("todo: serial");
+		XClientMessageEvent event = (XClientMessageEvent) {
+		.type = ClientMessage,
+		.serial = 0,
+		.send_event = true,
+		.display = display->x_display,
+		.window = window->x_window,
+		.message_type = display->atoms[net_wm_state],
+		.format = 32,
+		.data = {.l = {M_net_wm_state_add, display->atoms[net_wm_state_focused], 0, 0, 0}}};
+
+		XSendEvent(display->x_display, display->root, false, 0, (XEvent*)&event);
+	}
+
 	if (!window->have_protocols.take_focus) {
 		XSetInputFocus(display->x_display, window->x_window, RevertToPointerRoot, time);
 		return;
@@ -492,6 +507,21 @@ static void focus_window_impl (sl_display* display, sl_window* window, Time time
 	.data.l[1] = time};
 
 	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
+}
+
+static void unfocus_window_impl (sl_display* display, sl_window* window) {
+	warn_log("todo: serial");
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = display->x_display,
+	.window = window->x_window,
+	.message_type = display->atoms[net_wm_state],
+	.format = 32,
+	.data = {.l = {M_net_wm_state_remove, display->atoms[net_wm_state_focused], 0, 0, 0}}};
+
+	XSendEvent(display->x_display, display->root, false, 0, (XEvent*)&event);
 }
 
 static void delete_window_impl (sl_display* display, sl_window* window, Time time) {
@@ -528,6 +558,8 @@ void sl_focus_window (sl_display* display, size_t index, Time time) {
 			XGrabButton(
 			display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None
 			);
+
+		unfocus_window_impl(display, focused_window);
 	}
 
 	display->focused_window_index = index;
@@ -727,6 +759,13 @@ void sl_configure_window (sl_display* display, sl_window* window, uint value_mas
 	if (value_mask) XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes);
 }
 
+void sl_window_fullscreen_change_response (sl_display* display, sl_window* window) {
+	if ((window->state & window_state_fullscreen_bit) != 0)
+		sl_move_and_resize_window(display, window, display->dimensions);
+	else
+		sl_move_and_resize_window(display, window, window->saved_dimensions);
+}
+
 void sl_maximize_raised_window (sl_display* display) {
 	if (!is_valid_window_index(display->raised_window_index)) return;
 
@@ -735,13 +774,13 @@ void sl_maximize_raised_window (sl_display* display) {
 	if (raised_window->maximized) {
 		raised_window->maximized = false;
 
-		if (raised_window->fullscreen) return; // do nothing
+		if (raised_window->state & window_state_fullscreen_bit) return; // do nothing
 
 		return sl_move_and_resize_window(display, raised_window, raised_window->saved_dimensions);
 	}
 
 	raised_window->maximized = true;
-	if (raised_window->fullscreen) return; // do nothing
+	if (raised_window->state & window_state_fullscreen_bit) return; // do nothing
 
 	return sl_move_and_resize_window(display, raised_window, display->dimensions);
 }
@@ -751,7 +790,7 @@ void sl_expand_raised_window_to_max (sl_display* display) {
 
 	sl_window* const raised_window = sl_raised_window(display);
 
-	if (raised_window->fullscreen) return; // do nothing
+	if (raised_window->state & window_state_fullscreen_bit) return; // do nothing
 
 	raised_window->saved_dimensions = display->dimensions;
 

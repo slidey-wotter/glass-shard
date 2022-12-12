@@ -69,7 +69,8 @@ enum {
 	window_state_above_bit = 1 << 9,
 	window_state_below_bit = 1 << 10,
 	window_state_demands_attention_bit = 1 << 11,
-	window_state_focused_bit = 1 << 12
+	window_state_focused_bit = 1 << 12,
+	all_window_states = 0b1111111111111
 };
 
 struct sl_sized_string {
@@ -80,7 +81,7 @@ struct sl_sized_string {
 typedef struct sl_window {
 	Window const x_window;
 	bool const started;
-	bool mapped, fullscreen, maximized;
+	bool mapped, maximized;
 	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
@@ -166,3 +167,6 @@ extern void sl_window_set_net_wm_opaque_region (sl_window* window, sl_display* d
 extern void sl_window_set_net_wm_bypass_compositor (sl_window* window, sl_display* display);
 
 extern void sl_window_set_all_properties (sl_window* window, sl_display* display);
+
+extern void sl_window_set_fullscreen (sl_window* window, sl_display* display, bool fullscreen);
+extern void sl_window_toggle_fullscreen (sl_window* window, sl_display* display);

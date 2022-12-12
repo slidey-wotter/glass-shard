@@ -18,6 +18,7 @@
 
 #include "event-responses.h"
 
+#include "message.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -238,7 +239,7 @@ void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 
 	sl_window* const raised_window = sl_raised_window(display);
 
-	if (raised_window->fullscreen || raised_window->maximized) return;
+	if (raised_window->state & window_state_fullscreen_bit || raised_window->maximized) return;
 
 	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask)) {
 		sl_move_window(
@@ -677,6 +678,74 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 	  The X server generates ClientMessage events only when a client calls the function
 	  XSendEvent.
 	*/
+
+	window_handle_start {
+		if (event->message_type == display->atoms[net_wm_state]) {
+			if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen]) {
+				warn_log_va("[%lu] data.l[1] -> fullscreen", window->x_window);
+
+				if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
+					warn_log_va("[%lu] unset fullscreen", window->x_window);
+					sl_window_set_fullscreen(window, display, false);
+					sl_window_fullscreen_change_response(display, window);
+				} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
+					warn_log_va("[%lu] set fullscreen", window->x_window);
+					sl_window_set_fullscreen(window, display, true);
+					sl_window_fullscreen_change_response(display, window);
+				} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
+					warn_log_va("[%lu] toggle fullscreen", window->x_window);
+					sl_window_toggle_fullscreen(window, display);
+					sl_window_fullscreen_change_response(display, window);
+				}
+			}
+
+			if ((ulong)event->data.l[2] == display->atoms[net_wm_state_fullscreen]) {
+				warn_log_va("[%lu] data.l[2] -> fullscreen", window->x_window);
+
+				if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
+					warn_log_va("[%lu] unset fullscreen", window->x_window);
+					sl_window_set_fullscreen(window, display, false);
+					sl_window_fullscreen_change_response(display, window);
+				} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
+					warn_log_va("[%lu] set fullscreen", window->x_window);
+					sl_window_set_fullscreen(window, display, true);
+					sl_window_fullscreen_change_response(display, window);
+				} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
+					warn_log_va("[%lu] toggle fullscreen", window->x_window);
+					sl_window_toggle_fullscreen(window, display);
+					sl_window_fullscreen_change_response(display, window);
+				}
+			}
+		}
+		return;
+	}
+	window_handle_end
+
+	if (event->message_type == display->atoms[net_wm_state]) {
+		if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen]) {
+			warn_log_va("[%lu] data.l[1] -> fullscreen", event->window);
+
+			if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
+				warn_log_va("[%lu] unset fullscreen", event->window);
+			} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
+				warn_log_va("[%lu] set fullscreen", event->window);
+			} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
+				warn_log_va("[%lu] toggle fullscreen", event->window);
+			}
+		}
+
+		if ((ulong)event->data.l[2] == display->atoms[net_wm_state_fullscreen]) {
+			warn_log_va("[%lu] data.l[2] -> fullscreen", event->window);
+
+			if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
+				warn_log_va("[%lu] unset fullscreen", event->window);
+			} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
+				warn_log_va("[%lu] set fullscreen", event->window);
+			} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
+				warn_log_va("[%lu] toggle fullscreen", event->window);
+			}
+		}
+	}
 }
 
 void sl_mapping_notify (sl_display* display, XMappingEvent* event) {
@@ -927,6 +996,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			return sl_maximize_raised_window(display);
 
 		case XK_c: // close
+			warn_log_va("[%lu] close", sl_raised_window(display)->x_window);
 			return sl_close_raised_window(display, event->time);
 
 		case XK_Tab: // cycle the windows

@@ -59,33 +59,7 @@ sl_window_manager* window_manager () {
 	return &manager;
 }
 
-static void notify_net_supported_impl (sl_display* display, size_t atom_index) {
-	/*
-	  Whenever this spec speaks about “sending a message to the root window”, it is understood that the client is supposed to create a ClientMessage
-	  event with the specified contents and send it by using a SendEvent request with the following arguments:
-
-	  destination     root
-	  propagate       False
-	  event-mask      (SubstructureNotify|SubstructureRedirect)
-	  event           the specified ClientMessage
-	*/
-
-	warn_log("todo: serial");
-
-	XClientMessageEvent event = (XClientMessageEvent) {
-	.type = ClientMessage,
-	.serial = 0, /* # of last request processed by server */
-	.send_event = true, /* true if this came from a SendEvent request */
-	.display = display->x_display, /* Display the event was read from */
-	.window = display->root,
-	.message_type = display->atoms[net_supported],
-	.format = 32,
-	.data = {.l = {display->atoms[atom_index], 0, 0, 0, 0}}};
-
-	XSendEvent(display->x_display, display->root, false, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
-}
-
-static void notify_net_supported (sl_display* display) {
+static void set_net_supported (sl_display* display) {
 	/*
 	  _NET_SUPPORTED, ATOM[]/32
 
@@ -94,25 +68,70 @@ static void notify_net_supported (sl_display* display) {
 	  made to the hints (without being renamed).
 	*/
 
-	notify_net_supported_impl(display, net_wm_name);
-	notify_net_supported_impl(display, net_wm_visible_name);
-	notify_net_supported_impl(display, net_wm_icon_name);
-	notify_net_supported_impl(display, net_wm_visible_icon_name);
-	notify_net_supported_impl(display, net_wm_desktop);
-	notify_net_supported_impl(display, net_wm_window_type);
-	notify_net_supported_impl(display, net_wm_state);
-	notify_net_supported_impl(display, net_wm_allowed_actions);
-	notify_net_supported_impl(display, net_wm_strut);
-	notify_net_supported_impl(display, net_wm_strut_partial);
-	notify_net_supported_impl(display, net_wm_icon_geometry);
-	notify_net_supported_impl(display, net_wm_icon);
-	notify_net_supported_impl(display, net_wm_pid);
-	notify_net_supported_impl(display, net_wm_handled_icons);
-	notify_net_supported_impl(display, net_wm_user_time);
-	notify_net_supported_impl(display, net_wm_user_time_window);
-	notify_net_supported_impl(display, net_frame_extents);
-	notify_net_supported_impl(display, net_wm_opaque_region);
-	notify_net_supported_impl(display, net_wm_bypass_compositor);
+	Atom data[] = {
+	display->atoms[net_supported],
+	display->atoms[net_wm_name],
+	display->atoms[net_wm_visible_name],
+	display->atoms[net_wm_icon_name],
+	display->atoms[net_wm_visible_icon_name],
+	display->atoms[net_wm_desktop],
+	display->atoms[net_wm_window_type],
+	display->atoms[net_wm_window_type_desktop],
+	display->atoms[net_wm_window_type_dock],
+	display->atoms[net_wm_window_type_toolbar],
+	display->atoms[net_wm_window_type_menu],
+	display->atoms[net_wm_window_type_utility],
+	display->atoms[net_wm_window_type_splash],
+	display->atoms[net_wm_window_type_dialog],
+	display->atoms[net_wm_window_type_dropdown_menu],
+	display->atoms[net_wm_window_type_popup_menu],
+	display->atoms[net_wm_window_type_tooltip],
+	display->atoms[net_wm_window_type_notification],
+	display->atoms[net_wm_window_type_combo],
+	display->atoms[net_wm_window_type_dnd],
+	display->atoms[net_wm_window_type_normal],
+	display->atoms[net_wm_state],
+	display->atoms[net_wm_state_modal],
+	display->atoms[net_wm_state_sticky],
+	display->atoms[net_wm_state_maximized_vert],
+	display->atoms[net_wm_state_maximized_horz],
+	display->atoms[net_wm_state_shaded],
+	display->atoms[net_wm_state_skip_taskbar],
+	display->atoms[net_wm_state_skip_pager],
+	display->atoms[net_wm_state_hidden],
+	display->atoms[net_wm_state_fullscreen],
+	display->atoms[net_wm_state_above],
+	display->atoms[net_wm_state_below],
+	display->atoms[net_wm_state_demands_attention],
+	display->atoms[net_wm_state_focused],
+	display->atoms[net_wm_allowed_actions],
+	display->atoms[net_wm_action_move],
+	display->atoms[net_wm_action_resize],
+	display->atoms[net_wm_action_minimize],
+	display->atoms[net_wm_action_shade],
+	display->atoms[net_wm_action_stick],
+	display->atoms[net_wm_action_maximize_horz],
+	display->atoms[net_wm_action_maximize_vert],
+	display->atoms[net_wm_action_fullscreen],
+	display->atoms[net_wm_action_change_desktop],
+	display->atoms[net_wm_action_close],
+	display->atoms[net_wm_action_above],
+	display->atoms[net_wm_action_below],
+	display->atoms[net_wm_strut],
+	display->atoms[net_wm_strut_partial],
+	display->atoms[net_wm_icon_geometry],
+	display->atoms[net_wm_icon],
+	display->atoms[net_wm_pid],
+	display->atoms[net_wm_handled_icons],
+	display->atoms[net_wm_user_time],
+	display->atoms[net_wm_user_time_window],
+	display->atoms[net_frame_extents],
+	display->atoms[net_wm_opaque_region],
+	display->atoms[net_wm_bypass_compositor]};
+
+	XChangeProperty(
+	display->x_display, display->root, display->atoms[net_supported], XA_ATOM, 32, PropModeReplace, (uchar*)data, sizeof(data) / sizeof(Atom)
+	);
 }
 
 int main () {
@@ -137,7 +156,7 @@ int main () {
 		display = sl_display_create(x_display);
 	}
 
-	notify_net_supported(display);
+	set_net_supported(display);
 
 	warn_log("todo: this should be where we create threads for every display and handle each individually");
 	for (XEvent event; !XNextEvent(display->x_display, &event);) {

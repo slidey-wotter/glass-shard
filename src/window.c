@@ -34,7 +34,7 @@ struct sl_sized_string_mutable {
 typedef struct sl_window_mutable {
 	Window x_window;
 	bool started;
-	bool mapped, fullscreen, maximized;
+	bool mapped, maximized;
 	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
@@ -81,10 +81,7 @@ typedef struct sl_window_mutable {
 	u16 allowed_actions;
 } sl_window_mutable;
 
-void sl_window_start (sl_window* window) {
-	((sl_window_mutable*)window)->started = true;
-	((sl_window_mutable*)window)->allowed_actions = all_allowed_actions;
-}
+void sl_window_start (sl_window* window) { ((sl_window_mutable*)window)->started = true; }
 
 void sl_window_destroy (sl_window* window) {
 	if (window->name.data) free(((sl_window_mutable*)window)->name.data);
@@ -691,6 +688,7 @@ window_set_net_utf8_string_property (sl_window* window, sl_display* display, siz
 	*/
 
 	if (actual_type == None) {
+		warn_log("empty property");
 		XFree(prop);
 		return;
 	}
@@ -704,8 +702,8 @@ window_set_net_utf8_string_property (sl_window* window, sl_display* display, siz
 	*/
 
 	if (actual_type != display->atoms[type_utf8_string]) {
-		XFree(prop);
 		warn_log("atom type mismatch");
+		XFree(prop);
 		return;
 	}
 
@@ -833,7 +831,7 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	int actual_format;
 	ulong bytes_after;
 
-	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 1, false, display->atoms[type_atom], &actual_type, &actual_format, items_size, &bytes_after, prop) != Success) {
+	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 1, false, XA_ATOM, &actual_type, &actual_format, items_size, &bytes_after, prop) != Success) {
 		warn_log("XGetWindowProperty does not return Success");
 		return -1;
 	}
@@ -853,6 +851,7 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	*/
 
 	if (actual_type == None) {
+		warn_log("empty property");
 		XFree(*prop);
 		return -1;
 	}
@@ -865,9 +864,9 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	  It also ignores the delete argument. The nitems_return argument is empty.
 	*/
 
-	if (actual_type != display->atoms[type_atom]) {
-		XFree(*prop);
+	if (actual_type != XA_ATOM) {
 		warn_log("atom type mismatch");
+		XFree(*prop);
 		return -1;
 	}
 
@@ -888,8 +887,8 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	*/
 
 	XGetWindowProperty(
-	display->x_display, window->x_window, display->atoms[atom_index], 0, 2 + (bytes_after >> 2), false, display->atoms[type_atom], &actual_type,
-	&actual_format, items_size, &bytes_after, prop
+	display->x_display, window->x_window, display->atoms[atom_index], 0, 2 + (bytes_after >> 2), false, XA_ATOM, &actual_type, &actual_format,
+	items_size, &bytes_after, prop
 	);
 	return 0;
 }
@@ -974,7 +973,7 @@ void sl_window_set_net_wm_window_type (M_maybe_unused sl_window* window, M_maybe
 	Atom* prop = NULL;
 	ulong items_size;
 
-	get_net_atom_list(window, display, net_wm_window_type, (uchar**)&prop, &items_size);
+	if (get_net_atom_list(window, display, net_wm_window_type, (uchar**)&prop, &items_size) != 0) return;
 
 	((sl_window_mutable*)window)->type = 0;
 
@@ -1125,7 +1124,7 @@ void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unuse
 	Atom* prop = NULL;
 	ulong items_size;
 
-	get_net_atom_list(window, display, net_wm_window_type, (uchar**)&prop, &items_size);
+	if (get_net_atom_list(window, display, net_wm_state, (uchar**)&prop, &items_size) != 0) return;
 
 	((sl_window_mutable*)window)->state = 0;
 
@@ -1232,7 +1231,7 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	Atom* prop = NULL;
 	ulong items_size;
 
-	get_net_atom_list(window, display, net_wm_allowed_actions, (uchar**)&prop, &items_size);
+	if (get_net_atom_list(window, display, net_wm_allowed_actions, (uchar**)&prop, &items_size) != 0) return;
 
 	((sl_window_mutable*)window)->allowed_actions = 0;
 
@@ -1491,4 +1490,93 @@ void sl_window_set_all_properties (sl_window* window, sl_display* display) {
 	sl_window_set_net_frame_extents(window, display);
 	sl_window_set_net_wm_opaque_region(window, display);
 	sl_window_set_net_wm_bypass_compositor(window, display);
+}
+
+static void window_state_change (sl_window* window, sl_display* display) {
+	size_t i = 0;
+
+	if (window->state & window_state_modal_bit) ++i;
+	if (window->state & window_state_sticky_bit) ++i;
+	if (window->state & window_state_maximized_vert_bit) ++i;
+	if (window->state & window_state_maximized_horz_bit) ++i;
+	if (window->state & window_state_shaded_bit) ++i;
+	if (window->state & window_state_skip_taskbar_bit) ++i;
+	if (window->state & window_state_skip_pager_bit) ++i;
+	if (window->state & window_state_hidden_bit) ++i;
+	if (window->state & window_state_fullscreen_bit) ++i;
+	if (window->state & window_state_above_bit) ++i;
+	if (window->state & window_state_below_bit) ++i;
+	if (window->state & window_state_demands_attention_bit) ++i;
+	if (window->state & window_state_focused_bit) ++i;
+
+	Atom data[i];
+	i = 0;
+
+	if (window->state & window_state_modal_bit) {
+		data[i] = display->atoms[net_wm_state_modal];
+		++i;
+	}
+	if (window->state & window_state_sticky_bit) {
+		data[i] = display->atoms[net_wm_state_sticky];
+		++i;
+	}
+	if (window->state & window_state_maximized_vert_bit) {
+		data[i] = display->atoms[net_wm_state_maximized_vert];
+		++i;
+	}
+	if (window->state & window_state_maximized_horz_bit) {
+		data[i] = display->atoms[net_wm_state_maximized_horz];
+		++i;
+	}
+	if (window->state & window_state_shaded_bit) {
+		data[i] = display->atoms[net_wm_state_shaded];
+		++i;
+	}
+	if (window->state & window_state_skip_taskbar_bit) {
+		data[i] = display->atoms[net_wm_state_skip_taskbar];
+		++i;
+	}
+	if (window->state & window_state_skip_pager_bit) {
+		data[i] = display->atoms[net_wm_state_skip_pager];
+		++i;
+	}
+	if (window->state & window_state_hidden_bit) {
+		data[i] = display->atoms[net_wm_state_hidden];
+		++i;
+	}
+	if (window->state & window_state_fullscreen_bit) {
+		data[i] = display->atoms[net_wm_state_fullscreen];
+		++i;
+	}
+	if (window->state & window_state_above_bit) {
+		data[i] = display->atoms[net_wm_state_above];
+		++i;
+	}
+	if (window->state & window_state_below_bit) {
+		data[i] = display->atoms[net_wm_state_below];
+		++i;
+	}
+	if (window->state & window_state_demands_attention_bit) {
+		data[i] = display->atoms[net_wm_state_demands_attention];
+		++i;
+	}
+	if (window->state & window_state_focused_bit) {
+		data[i] = display->atoms[net_wm_state_focused];
+		++i;
+	}
+
+	XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)data, i);
+}
+
+void sl_window_set_fullscreen (sl_window* window, sl_display* display, bool fullscreen) {
+	if (fullscreen)
+		((sl_window_mutable*)window)->state |= window_state_fullscreen_bit;
+	else
+		((sl_window_mutable*)window)->state &= all_window_states - window_state_fullscreen_bit;
+
+	window_state_change(window, display);
+}
+
+void sl_window_toggle_fullscreen (sl_window* window, sl_display* display) {
+	return sl_window_set_fullscreen(window, display, !(window->state & window_state_fullscreen_bit));
 }
