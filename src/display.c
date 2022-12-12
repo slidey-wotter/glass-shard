@@ -651,6 +651,7 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window) {
 }
 
 void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
+	if (window->type & window_type_splash_bit) return;
 	if (window->dimensions.x == x && window->dimensions.y == y) return;
 
 	window->dimensions.x = x;
@@ -662,6 +663,8 @@ void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
 }
 
 void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height) {
+	if (window->type & window_type_splash_bit) return;
+
 	if (window->normal_hints.min_width != 0) {
 		if (window->normal_hints.max_width != 0) {
 			width = min(window->normal_hints.max_width, max(window->normal_hints.min_width, width));
@@ -697,6 +700,7 @@ void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 he
 }
 
 void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
+	if (window->type & window_type_splash_bit) return;
 	if (window->dimensions.x == dimensions.x && window->dimensions.y == dimensions.y && window->dimensions.width == dimensions.width && window->dimensions.height == dimensions.height)
 		return;
 
