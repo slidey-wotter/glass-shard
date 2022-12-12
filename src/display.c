@@ -469,7 +469,7 @@ static void focus_window_impl (sl_display* display, sl_window* window, Time time
 
 static void delete_window_impl (sl_display* display, sl_window* window, Time time) {
 	if (!window->have_protocols.delete_window) {
-		XDestroyWindow(display->x_display, window->x_window);
+		XKillClient(display->x_display, window->x_window);
 		return;
 	}
 
@@ -600,9 +600,9 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_w
 
 	warn_log("todo: send x and y coordinates correctly for window resize");
 
-	// XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
+	XConfigureEvent configure_event = (XConfigureEvent) {.type = ConfigureNotify, .display = display->x_display, .event = window->x_window, .window = window->x_window, .x = dimensions.x, .y = dimensions.y, .width = dimensions.width, .height = dimensions.height, .override_redirect = false};
 
-	// XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 }
 
 void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
@@ -721,6 +721,7 @@ void sl_window_erase (sl_display* display, size_t index, Time time) {
 }
 
 void sl_raised_window_erase (sl_display* display, Time time) {
+	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index) display->focused_window_index = M_invalid_window_index;
 	size_t const old_raised_window_index = display->raised_window_index;
 	sl_cycle_windows_down(display, time);
 
