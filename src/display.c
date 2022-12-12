@@ -251,10 +251,7 @@ static void cycle_workspace_down (sl_display* display) {
 \
 			sl_window* const window = sl_window_at(display, next_raised_window_index); \
 \
-			if (window->mapped && window->workspace == display->current_workspace) { \
-				warn_log_va("next focused window %lu", next_raised_window_index); \
-				return sl_focus_and_raise_window(display, next_raised_window_index, time); \
-			} \
+			if (window->mapped && window->workspace == display->current_workspace) return sl_focus_and_raise_window(display, next_raised_window_index, time); \
 		} \
 	}
 

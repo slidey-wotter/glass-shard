@@ -26,6 +26,7 @@
 #include "workspace-type.h"
 
 enum {
+	atom,
 	utf8_string,
 	wm_protocols,
 	wm_colormap_windows,
@@ -94,6 +95,7 @@ enum {
 };
 
 static char* const atoms_string_list[] = {
+"ATOM",
 "UTF8_STRING",
 "WM_PROTOCOLS",
 "WM_COLORMAP_WINDOWS",

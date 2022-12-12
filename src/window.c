@@ -22,6 +22,7 @@
 
 #include "compiler-differences.h"
 #include "display.h"
+#include <string.h>
 
 typedef struct sl_window_mutable {
 	Window x_window;
@@ -35,6 +36,8 @@ typedef struct sl_window_mutable {
 	struct sl_window_have_protocols have_protocols;
 
 	char net_wm_name[64];
+
+	u16 allowed_actions;
 } sl_window_mutable;
 
 void sl_window_swap (sl_window* lhs, sl_window* rhs) {
@@ -864,6 +867,109 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	*/
 
 	warn_log("todo: _net_wm_allowed_actions");
+
+	Atom actual_type;
+	int actual_format;
+	ulong items_size;
+	ulong bytes_after;
+	uchar* prop = NULL;
+
+	size_t offset = 0;
+
+	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
+		warn_log("XGetWindowProperty does not return Success");
+		return;
+	}
+
+	/*
+	  The XGetWindowProperty function returns the actual type of the property; the actual
+	  format of the property; the number of 8-bit, 16-bit, or 32-bit items transferred; the
+	  number of bytes remaining to be read in the property; and a pointer to the data
+	  actually returned. XGetWindowProperty sets the return arguments as follows:
+	*/
+
+	/*
+	  If the specified property does not exist for the specified window,
+	  XGetWindowProperty returns None to actual_type_return and the value zero
+	  to actual_format_return and bytes_after_return. The nitems_return argument is
+	  empty. In this case, the delete argument is ignored.
+	*/
+
+	if (actual_type == None) {
+		XFree(prop);
+		return;
+	}
+
+	/*
+	  If the specified property exists but its type does not match the specified type,
+	  XGetWindowProperty returns the actual property type to actual_type_return, the
+	  actual property format (never zero) to actual_format_return, and the property
+	  length in bytes (even if the actual_format_return is 16 or 32) to bytes_after_return.
+	  It also ignores the delete argument. The nitems_return argument is empty.
+	*/
+
+	if (actual_type != display->atoms[atom]) {
+		XFree(prop);
+		warn_log("atom type mismatch");
+		return;
+	}
+
+	/*
+	  If the specified property exists and either you assign AnyPropertyType to the
+	  req_type argument or the specified type matches the actual property type,
+	  XGetWindowProperty returns the actual property type to actual_type_return and
+	  the actual property format (never zero) to actual_format_return. It also returns a
+	  value to bytes_after_return and nitems_return, by defining the following values:
+
+	  • N = actual length of the stored property in bytes (even if the format is 16 or 32)
+	  I = 4 * long_offset T = N - I L = MINIMUM(T, 4 * long_length) A = N - (I + L)
+
+	  • The returned value starts at byte index I in the property (indexing from zero),
+	  and its length in bytes is L. If the value for long_offset causes L to be negative,
+	  a BadValue error results. The value of bytes_after_return is A, giving the number
+	  of trailing unread bytes in the stored property.
+	*/
+
+	((sl_window_mutable*)window)->allowed_actions = 0;
+
+	for (;;) {
+		if (*(Atom*)prop == display->atoms[net_wm_action_move]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_move_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_resize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_resize_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_minimize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_minimize_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_shade]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_shade_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_stick]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_stick_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_maximize_horz]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_horz_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_maximize_vert]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_vert_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_fullscreen]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_fullscreen_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_change_desktop]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_change_desktop_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_close]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_close_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_above]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_above_bit;
+		if (*(Atom*)prop == display->atoms[net_wm_action_below]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_below_bit;
+
+		XFree(prop);
+
+		if (bytes_after == 0) break;
+
+		++offset;
+		XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
+	}
+
+	char buffer[256] = "";
+
+	if (window->allowed_actions & allowed_action_move_bit) strcat(buffer, "move ");
+	if (window->allowed_actions & allowed_action_resize_bit) strcat(buffer, "resize ");
+	if (window->allowed_actions & allowed_action_minimize_bit) strcat(buffer, "minimize ");
+	if (window->allowed_actions & allowed_action_shade_bit) strcat(buffer, "shade ");
+	if (window->allowed_actions & allowed_action_stick_bit) strcat(buffer, "stick ");
+	if (window->allowed_actions & allowed_action_maximize_horz_bit) strcat(buffer, "maximize_horz ");
+	if (window->allowed_actions & allowed_action_maximize_vert_bit) strcat(buffer, "maximize_vert ");
+	if (window->allowed_actions & allowed_action_fullscreen_bit) strcat(buffer, "fullscreen ");
+	if (window->allowed_actions & allowed_action_change_desktop_bit) strcat(buffer, "change_desktop ");
+	if (window->allowed_actions & allowed_action_close_bit) strcat(buffer, "close ");
+	if (window->allowed_actions & allowed_action_above_bit) strcat(buffer, "above ");
+	if (window->allowed_actions & allowed_action_below_bit) strcat(buffer, "below ");
+
+	warn_log_va("[%lu] allowed actions: %s", window->x_window, buffer);
 }
 
 void sl_window_set_net_wm_strut (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
