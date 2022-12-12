@@ -59,7 +59,25 @@ typedef struct sl_window {
 	struct sl_sized_ustring const name;
 	struct sl_sized_ustring const icon_name;
 
-	struct sl_window_have_protocols {
+	struct {
+		i16 min_width;
+		i16 min_height;
+		i16 max_width;
+		i16 max_height;
+		i16 width_inc;
+		i16 height_inc;
+
+		struct {
+			i16 numerator;
+			i16 denominator;
+		} min_aspect, max_aspect;
+
+		i16 base_width;
+		i16 base_height;
+		i16 gravity;
+	} const window_hints;
+
+	struct {
 		bool take_focus;
 		bool delete_window;
 	} const have_protocols;

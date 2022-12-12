@@ -18,12 +18,13 @@
 
 #include "window.h"
 
+#include <string.h>
+
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 
 #include "compiler-differences.h"
 #include "display.h"
-#include <string.h>
 
 struct sl_sized_ustring_mutable {
 	uchar* data;
@@ -45,7 +46,28 @@ typedef struct sl_window_mutable {
 	struct sl_sized_ustring_mutable name;
 	struct sl_sized_ustring_mutable icon_name;
 
-	struct sl_window_have_protocols have_protocols;
+	struct window_normal_hints {
+		i16 min_width;
+		i16 min_height;
+		i16 max_width;
+		i16 max_height;
+		i16 width_inc;
+		i16 height_inc;
+
+		struct window_normal_hints_aspect {
+			i16 numerator;
+			i16 denominator;
+		} min_aspect, max_aspect;
+
+		i16 base_width;
+		i16 base_height;
+		i16 gravity;
+	} window_hints;
+
+	struct {
+		bool take_focus;
+		bool delete_window;
+	} have_protocols;
 
 	struct sl_sized_string_mutable net_wm_name;
 
@@ -137,9 +159,6 @@ void sl_set_window_name (sl_window* window, sl_display* display) {
 	  Even window managers that support headline bars will place some limit on the
 	  length of the WM_NAME string that can be visible; brevity here will pay dividends.
 	*/
-
-	warn_log("todo: wm_name");
-
 	XTextProperty text_property;
 
 	XGetTextProperty(display->x_display, window->x_window, &text_property, XA_WM_NAME);
@@ -165,9 +184,6 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 	  Clients should not attempt to display this string in their icon pixmaps or windows;
 	  rather, they should rely on the window manager to do so.
 	*/
-
-	warn_log("todo: wm_icon_name");
-
 	XTextProperty text_property;
 
 	XGetTextProperty(display->x_display, window->x_window, &text_property, XA_WM_ICON_NAME);
@@ -178,6 +194,153 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 	memcpy(((sl_window_mutable*)window)->icon_name.data, text_property.value, window->icon_name.size);
 
 	warn_log_va("[%lu] icon_name: \"%.*s\"", window->x_window, (int)window->icon_name.size, window->icon_name.data);
+}
+
+void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
+	/*
+	  The type of the WM_NORMAL_HINTS property is WM_SIZE_HINTS. Its contents
+	  are as follows:
+
+	  Field       | Type          | Comments
+	  flags       | CARD32        | (see the next table)
+	  pad         | 4*CARD32      | For backwards compatibility
+	  min_width   | INT32         | If missing, assume base_width
+	  min_height  | INT32         | If missing, assume base_height
+	  max_width   | INT32         |
+	  max_height  | INT32         |
+	  width_inc   | INT32         |
+	  height_inc  | INT32         |
+	  min_aspect  | (INT32,INT32) |
+	  max_aspect  | (INT32,INT32) |
+	  base_width  | INT32         | If missing, assume min_width
+	  base_height | INT32         | If missing, assume min_height
+	  win_gravity | INT32         | If missing, assume NorthWest
+
+	  The WM_SIZE_HINTS.flags bit definitions are as follows:
+
+	  Name        | Value | Field
+	  USPosition  | 1     | User-specified x, y
+	  USSize      | 2     | User-specified width, height
+	  PPosition   | 4     | Program-specified position
+	  PSize       | 8     | Program-specified size
+	  PMinSize    | 16    | Program-specified minimum size
+	  PMaxSize    | 32    | Program-specified maximum size
+	  PResizeInc  | 64    | Program-specified resize increments
+	  PAspect     | 128   | Program-specified min and max aspect ratios
+	  PBaseSize   | 256   | Program-specified base size
+	  PWinGravity | 512   | Program-specified window gravity
+
+	  To indicate that the size and position of the window (when a transition from
+	  the Withdrawn state occurs) was specified by the user, the client should set the
+	  USPosition and USSize flags, which allow a window manager to know that the user
+	  specifically asked where the window should be placed or how the window should be
+	  sized and that further interaction is superfluous. To indicate that it was specified by
+	  the client without any user involvement, the client should set PPosition and PSize.
+
+	  The size specifiers refer to the width and height of the client's window excluding
+	  borders.
+
+	  The win_gravity may be any of the values specified for WINGRAVITY in the core
+	  protocol except for Unmap: NorthWest (1), North (2), NorthEast (3), West (4), Center
+	  (5), East (6), SouthWest (7), South (8), and SouthEast (9). It specifies how and
+	  whether the client window wants to be shifted to make room for the window
+	  manager frame.
+
+	  If the win_gravity is Static, the window manager frame is positioned so that the
+	  inside border of the client window inside the frame is in the same position on
+	  the screen as it was when the client requested the transition from Withdrawn
+	  state. Other values of win_gravity specify a window reference point. For NorthWest,
+	  NorthEast, SouthWest, and SouthEast the reference point is the specified outer
+	  corner of the window (on the outside border edge). For North, South, East and West
+	  the reference point is the center of the specified outer edge of the window border.
+	  For Center the reference point is the center of the window. The reference point
+	  of the window manager frame is placed at the location on the screen where the
+	  reference point of the client window was when the client requested the transition
+	  from Withdrawn state.
+
+	  The min_width and min_height elements specify the minimum size that the window
+	  can be for the client to be useful. The max_width and max_height elements specify
+	  the maximum size. The base_width and base_height elements in conjunction with
+	  width_inc and height_inc define an arithmetic progression of preferred window
+	  widths and heights for non-negative integers i and j:
+
+	  width = base_width + ( i x width_inc )
+
+	  height = base_height + ( j x height_inc )
+
+	  Window managers are encouraged to use i and j instead of width and height in
+	  reporting window sizes to users. If a base size is not provided, the minimum size is
+	  to be used in its place and vice versa.
+
+	  The min_aspect and max_aspect fields are fractions with the numerator first and
+	  the denominator second, and they allow a client to specify the range of aspect ratios
+	  it prefers. Window managers that honor aspect ratios should take into account the
+	  base size in determining the preferred window size. If a base size is provided along
+	  with the aspect ratio fields, the base size should be subtracted from the window size
+	  prior to checking that the aspect ratio falls in range. If a base size is not provided,
+	  nothing should be subtracted from the window size. (The minimum size is not to be
+	  used in place of the base size for this purpose.)
+	*/
+
+	XSizeHints size_hints;
+	long user_supplied;
+
+	XGetWMNormalHints(display->x_display, window->x_window, &size_hints, &user_supplied);
+
+	warn_log("ignoring user supplied");
+
+	((sl_window_mutable*)window)->window_hints = (struct window_normal_hints) {
+	0, 0, 0, 0, 0, 0, {0, 0},
+        {0, 0},
+        0, 0, 0
+  };
+	// ^^^^^^^ epic clang-format ^^^^^^^
+
+	if (size_hints.flags & PMinSize && size_hints.flags & PBaseSize) {
+		((sl_window_mutable*)window)->window_hints.min_width = size_hints.min_width;
+		((sl_window_mutable*)window)->window_hints.min_height = size_hints.min_height;
+
+		((sl_window_mutable*)window)->window_hints.base_width = size_hints.base_width;
+		((sl_window_mutable*)window)->window_hints.base_height = size_hints.base_height;
+	} else if (size_hints.flags & PMinSize) {
+		((sl_window_mutable*)window)->window_hints.min_width = size_hints.min_width;
+		((sl_window_mutable*)window)->window_hints.min_height = size_hints.min_height;
+
+		((sl_window_mutable*)window)->window_hints.base_width = size_hints.min_width;
+		((sl_window_mutable*)window)->window_hints.base_height = size_hints.min_height;
+	} else if (size_hints.flags & PBaseSize) {
+		((sl_window_mutable*)window)->window_hints.min_width = size_hints.base_width;
+		((sl_window_mutable*)window)->window_hints.min_height = size_hints.base_height;
+
+		((sl_window_mutable*)window)->window_hints.base_width = size_hints.base_width;
+		((sl_window_mutable*)window)->window_hints.base_height = size_hints.base_height;
+	} else {
+		assert_not_reached();
+	}
+
+	if (size_hints.flags & PMaxSize) {
+		((sl_window_mutable*)window)->window_hints.max_width = size_hints.max_width;
+		((sl_window_mutable*)window)->window_hints.max_height = size_hints.max_height;
+	}
+
+	if (size_hints.flags & PResizeInc) {
+		((sl_window_mutable*)window)->window_hints.width_inc = size_hints.width_inc;
+		((sl_window_mutable*)window)->window_hints.height_inc = size_hints.height_inc;
+	}
+
+	if (size_hints.flags & PAspect) {
+		((sl_window_mutable*)window)->window_hints.min_aspect = (struct window_normal_hints_aspect) {.numerator = size_hints.min_aspect.x, .denominator = size_hints.y};
+		((sl_window_mutable*)window)->window_hints.max_aspect = (struct window_normal_hints_aspect) {.numerator = size_hints.max_aspect.x, .denominator = size_hints.y};
+	}
+
+	if (size_hints.flags & PWinGravity) {
+		((sl_window_mutable*)window)->window_hints.gravity = size_hints.win_gravity;
+	}
+
+	warn_log_va(
+	"[%lu] window hints: min_width %u, min_height %u, max_width %u, max_height %u, width_inc %u, height_inc %u, min_aspect %u/%u, max_aspect %u/%u, base_width %u, base_height %u, gravity %u", window->x_window, window->window_hints.min_width, window->window_hints.min_height, window->window_hints.max_width, window->window_hints.max_height, window->window_hints.width_inc, window->window_hints.height_inc, window->window_hints.min_aspect.numerator, window->window_hints.min_aspect.denominator,
+	window->window_hints.max_aspect.numerator, window->window_hints.max_aspect.denominator, window->window_hints.base_width, window->window_hints.base_height, window->window_hints.gravity
+	);
 }
 
 void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -321,95 +484,6 @@ void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 	*/
 
 	warn_log("todo: wm_window_hints");
-}
-
-void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
-	/*
-	  The type of the WM_NORMAL_HINTS property is WM_SIZE_HINTS. Its contents
-	  are as follows:
-
-	  Field       | Type          | Comments
-	  flags       | CARD32        | (see the next table)
-	  pad         | 4*CARD32      | For backwards compatibility
-	  min_width   | INT32         | If missing, assume base_width
-	  min_height  | INT32         | If missing, assume base_height
-	  max_width   | INT32         |
-	  max_height  | INT32         |
-	  width_inc   | INT32         |
-	  height_inc  | INT32         |
-	  min_aspect  | (INT32,INT32) |
-	  max_aspect  | (INT32,INT32) |
-	  base_width  | INT32         | If missing, assume min_width
-	  base_height | INT32         | If missing, assume min_height
-	  win_gravity | INT32         | If missing, assume NorthWest
-
-	  The WM_SIZE_HINTS.flags bit definitions are as follows:
-
-	  Name        | Value | Field
-	  USPosition  | 1     | User-specified x, y
-	  USSize      | 2     | User-specified width, height
-	  PPosition   | 4     | Program-specified position
-	  PSize       | 8     | Program-specified size
-	  PMinSize    | 16    | Program-specified minimum size
-	  PMaxSize    | 32    | Program-specified maximum size
-	  PResizeInc  | 64    | Program-specified resize increments
-	  PAspect     | 128   | Program-specified min and max aspect ratios
-	  PBaseSize   | 256   | Program-specified base size
-	  PWinGravity | 512   | Program-specified window gravity
-
-	  To indicate that the size and position of the window (when a transition from
-	  the Withdrawn state occurs) was specified by the user, the client should set the
-	  USPosition and USSize flags, which allow a window manager to know that the user
-	  specifically asked where the window should be placed or how the window should be
-	  sized and that further interaction is superfluous. To indicate that it was specified by
-	  the client without any user involvement, the client should set PPosition and PSize.
-
-	  The size specifiers refer to the width and height of the client's window excluding
-	  borders.
-
-	  The win_gravity may be any of the values specified for WINGRAVITY in the core
-	  protocol except for Unmap: NorthWest (1), North (2), NorthEast (3), West (4), Center
-	  (5), East (6), SouthWest (7), South (8), and SouthEast (9). It specifies how and
-	  whether the client window wants to be shifted to make room for the window
-	  manager frame.
-
-	  If the win_gravity is Static, the window manager frame is positioned so that the
-	  inside border of the client window inside the frame is in the same position on
-	  the screen as it was when the client requested the transition from Withdrawn
-	  state. Other values of win_gravity specify a window reference point. For NorthWest,
-	  NorthEast, SouthWest, and SouthEast the reference point is the specified outer
-	  corner of the window (on the outside border edge). For North, South, East and West
-	  the reference point is the center of the specified outer edge of the window border.
-	  For Center the reference point is the center of the window. The reference point
-	  of the window manager frame is placed at the location on the screen where the
-	  reference point of the client window was when the client requested the transition
-	  from Withdrawn state.
-
-	  The min_width and min_height elements specify the minimum size that the window
-	  can be for the client to be useful. The max_width and max_height elements specify
-	  the maximum size. The base_width and base_height elements in conjunction with
-	  width_inc and height_inc define an arithmetic progression of preferred window
-	  widths and heights for non-negative integers i and j:
-
-	  width = base_width + ( i x width_inc )
-
-	  height = base_height + ( j x height_inc )
-
-	  Window managers are encouraged to use i and j instead of width and height in
-	  reporting window sizes to users. If a base size is not provided, the minimum size is
-	  to be used in its place and vice versa.
-
-	  The min_aspect and max_aspect fields are fractions with the numerator first and
-	  the denominator second, and they allow a client to specify the range of aspect ratios
-	  it prefers. Window managers that honor aspect ratios should take into account the
-	  base size in determining the preferred window size. If a base size is provided along
-	  with the aspect ratio fields, the base size should be subtracted from the window size
-	  prior to checking that the aspect ratio falls in range. If a base size is not provided,
-	  nothing should be subtracted from the window size. (The minimum size is not to be
-	  used in place of the base size for this purpose.)
-	*/
-
-	warn_log("todo: wm_normal_hints");
 }
 
 void sl_set_window_class (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
