@@ -39,9 +39,6 @@
 #define parse_mask(m)      (m & ~(display->numlockmask | LockMask))
 #define parse_mask_long(m) (m & ~(display->numlockmask | LockMask) & (ShiftMask | ControlMask | Mod1Mask | Mod2Mask | Mod3Mask | Mod4Mask | Mod5Mask))
 
-#define max(a, b) ((a > b) ? a : b)
-#define min(a, b) ((a > b) ? b : a)
-
 #define window_handle_start \
 	for (size_t i = 0; i < display->windows->size; ++i) { \
 		sl_window* const window = sl_window_at(display, i); \
@@ -244,57 +241,31 @@ void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 	if (raised_window->fullscreen || raised_window->maximized) return;
 
 	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask)) {
-		raised_window->saved_dimensions.x += event->x_root - display->mouse.x;
-		raised_window->saved_dimensions.y += event->y_root - display->mouse.y;
+		sl_move_window(
+		display, raised_window, raised_window->saved_dimensions.x + event->x_root - display->mouse.x,
+		raised_window->saved_dimensions.y + event->y_root - display->mouse.y
+		);
+
+		raised_window->saved_dimensions = raised_window->dimensions;
+
 		display->mouse.x = event->x_root;
 		display->mouse.y = event->y_root;
 
-		return sl_move_window(display, raised_window, raised_window->saved_dimensions.x, raised_window->saved_dimensions.y);
+		return;
 	}
 
 	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask | ControlMask)) {
-		if (raised_window->normal_hints.min_width != 0) {
-			if (raised_window->normal_hints.max_width != 0) {
-				raised_window->saved_dimensions.width = min(
-				raised_window->normal_hints.max_width,
-				max(raised_window->normal_hints.min_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x)
-				);
-			} else {
-				raised_window->saved_dimensions.width =
-				max(raised_window->normal_hints.min_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x);
-			}
-		} else {
-			if (raised_window->normal_hints.max_width != 0) {
-				raised_window->saved_dimensions.width =
-				min(raised_window->normal_hints.max_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x);
-			} else {
-				raised_window->saved_dimensions.width = raised_window->saved_dimensions.width + event->x_root - display->mouse.x;
-			}
-		}
+		sl_resize_window(
+		display, raised_window, raised_window->saved_dimensions.width + event->x_root - display->mouse.x,
+		raised_window->saved_dimensions.height + event->y_root - display->mouse.y
+		);
 
-		if (raised_window->normal_hints.min_height != 0) {
-			if (raised_window->normal_hints.max_height != 0) {
-				raised_window->saved_dimensions.height = min(
-				raised_window->normal_hints.max_height,
-				max(raised_window->normal_hints.min_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y)
-				);
-			} else {
-				raised_window->saved_dimensions.height =
-				max(raised_window->normal_hints.min_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y);
-			}
-		} else {
-			if (raised_window->normal_hints.max_height != 0) {
-				raised_window->saved_dimensions.height =
-				min(raised_window->normal_hints.max_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y);
-			} else {
-				raised_window->saved_dimensions.height = raised_window->saved_dimensions.height + event->y_root - display->mouse.y;
-			}
-		}
+		raised_window->saved_dimensions = raised_window->dimensions;
 
 		display->mouse.x = event->x_root;
 		display->mouse.y = event->y_root;
 
-		return sl_resize_window(display, raised_window, raised_window->saved_dimensions.width, raised_window->saved_dimensions.height);
+		return;
 	}
 }
 
@@ -491,18 +462,12 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 			);
 
 		if (event->value_mask & (CWX | CWY | CWWidth | CWHeight)) {
-			if (event->value_mask & CWX) window->saved_dimensions.x = event->x;
-			if (event->value_mask & CWY) window->saved_dimensions.y = event->y;
-			if (event->value_mask & CWWidth) window->saved_dimensions.width = event->width;
-			if (event->value_mask & CWHeight) window->saved_dimensions.height = event->height;
-			return sl_configure_window(
+			sl_configure_window(
 			display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight),
-			(XWindowChanges) {
-			.x = window->saved_dimensions.x,
-			.y = window->saved_dimensions.y,
-			.width = window->saved_dimensions.width,
-			.height = window->saved_dimensions.height}
+			(XWindowChanges) {.x = event->x, .y = event->y, .width = event->width, .height = event->height}
 			);
+
+			window->saved_dimensions = window->dimensions;
 		}
 
 		return;
@@ -539,18 +504,17 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 
 	XMapWindow(display->x_display, window->x_window);
 
+	sl_window_set_all_properties(window, display);
+
 	{
 		XWindowAttributes attributes;
 
 		XGetWindowAttributes(display->x_display, window->x_window, &attributes);
-		if (attributes.x != 0) window->saved_dimensions.x = attributes.x;
-		if (attributes.y != 0) window->saved_dimensions.y = attributes.y;
-		if (attributes.width != 0) window->saved_dimensions.width = attributes.width;
-		if (attributes.height != 0) window->saved_dimensions.height = attributes.height;
-		sl_move_and_resize_window(display, window, window->saved_dimensions);
+		sl_move_and_resize_window(
+		display, window, (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height}
+		);
+		window->saved_dimensions = window->dimensions;
 	}
-
-	sl_window_set_all_properties(window, display);
 
 	XSelectInput(
 	display->x_display, window->x_window,

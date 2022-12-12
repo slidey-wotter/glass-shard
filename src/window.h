@@ -81,6 +81,7 @@ typedef struct sl_window {
 	Window const x_window;
 	bool const started;
 	bool mapped, fullscreen, maximized;
+	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 

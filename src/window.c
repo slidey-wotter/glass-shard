@@ -35,6 +35,7 @@ typedef struct sl_window_mutable {
 	Window x_window;
 	bool started;
 	bool mapped, fullscreen, maximized;
+	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 

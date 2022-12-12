@@ -25,6 +25,9 @@
 
 #include "window.h"
 
+#define max(a, b) ((a > b) ? a : b)
+#define min(a, b) ((a > b) ? b : a)
+
 typedef struct sl_display_mutable {
 	Display* x_display;
 	Window root;
@@ -589,7 +592,7 @@ void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Tim
 	raise_window_impl(display, unmanaged_window, time);
 }
 
-void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
+void send_new_dimensions_to_window (sl_display* display, sl_window* window) {
 	/*
 	  Inter-Client Communication Conventions Manual: Chapter 4. Client-to-Window-Manager Communication: Client Responses to Window Manager Actions:
 
@@ -638,39 +641,81 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window, sl_w
 	.display = display->x_display,
 	.event = window->x_window,
 	.window = window->x_window,
-	.x = dimensions.x,
-	.y = dimensions.y,
-	.width = dimensions.width,
-	.height = dimensions.height,
+	.x = window->dimensions.x,
+	.y = window->dimensions.y,
+	.width = window->dimensions.width,
+	.height = window->dimensions.height,
 	.override_redirect = false};
 
 	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 }
 
 void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
-	XMoveWindow(display->x_display, window->x_window, x, y);
+	if (window->dimensions.x == x && window->dimensions.y == y) return;
 
-	send_new_dimensions_to_window(
-	display, window, (sl_window_dimensions) {.x = x, .y = y, .width = window->saved_dimensions.width, .height = window->saved_dimensions.height}
-	);
+	window->dimensions.x = x;
+	window->dimensions.y = y;
+
+	XMoveWindow(display->x_display, window->x_window, window->dimensions.x, window->dimensions.y);
+
+	send_new_dimensions_to_window(display, window);
 }
 
 void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height) {
-	XResizeWindow(display->x_display, window->x_window, width, height);
+	if (window->normal_hints.min_width != 0) {
+		if (window->normal_hints.max_width != 0) {
+			width = min(window->normal_hints.max_width, max(window->normal_hints.min_width, width));
+		} else {
+			width = max(window->normal_hints.min_width, width);
+		}
+	} else {
+		if (window->normal_hints.max_width != 0) {
+			width = min(window->normal_hints.max_width, width);
+		}
+	}
 
-	send_new_dimensions_to_window(
-	display, window, (sl_window_dimensions) {.x = window->saved_dimensions.x, .y = window->saved_dimensions.y, .width = width, .height = height}
-	);
+	if (window->normal_hints.min_height != 0) {
+		if (window->normal_hints.max_height != 0) {
+			height = min(window->normal_hints.max_height, max(window->normal_hints.min_height, height));
+		} else {
+			height = max(window->normal_hints.min_height, height);
+		}
+	} else {
+		if (window->normal_hints.max_height != 0) {
+			height = min(window->normal_hints.max_height, height);
+		}
+	}
+
+	if (window->dimensions.width == width && window->dimensions.height == height) return;
+
+	window->dimensions.width = width;
+	window->dimensions.height = height;
+
+	XResizeWindow(display->x_display, window->x_window, window->dimensions.width, window->dimensions.height);
+
+	send_new_dimensions_to_window(display, window);
 }
 
 void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
-	XMoveResizeWindow(display->x_display, window->x_window, dimensions.x, dimensions.y, dimensions.width, dimensions.height);
+	if (window->dimensions.x == dimensions.x && window->dimensions.y == dimensions.y && window->dimensions.width == dimensions.width && window->dimensions.height == dimensions.height)
+		return;
 
-	send_new_dimensions_to_window(display, window, dimensions);
+	window->dimensions = dimensions;
+
+	XMoveResizeWindow(
+	display->x_display, window->x_window, window->dimensions.x, window->dimensions.y, window->dimensions.width, window->dimensions.height
+	);
+
+	send_new_dimensions_to_window(display, window);
 }
 
 void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes) {
-	XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes);
+	if (value_mask & CWX) window->dimensions.x = window_changes.x;
+	if (value_mask & CWY) window->dimensions.y = window_changes.y;
+	if (value_mask & CWWidth) window->dimensions.width = window_changes.width;
+	if (value_mask & CWHeight) window->dimensions.height = window_changes.height;
+
+	if (value_mask) XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes);
 }
 
 void sl_maximize_raised_window (sl_display* display) {
@@ -688,14 +733,6 @@ void sl_maximize_raised_window (sl_display* display) {
 
 	raised_window->maximized = true;
 	if (raised_window->fullscreen) return; // do nothing
-
-	warn_log("aren't we supposed to exactly not do this?");
-	{
-		XWindowAttributes attributes;
-		XGetWindowAttributes(display->x_display, raised_window->x_window, &attributes);
-		raised_window->saved_dimensions =
-		(sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
-	}
 
 	return sl_move_and_resize_window(display, raised_window, display->dimensions);
 }
