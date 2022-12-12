@@ -42,21 +42,21 @@ typedef struct sl_window_mutable {
 	struct sl_sized_string_mutable icon_name;
 
 	struct window_normal_hints {
-		i16 min_width;
-		i16 min_height;
-		i16 max_width;
-		i16 max_height;
-		i16 width_inc;
-		i16 height_inc;
+		u16 min_width;
+		u16 min_height;
+		u16 max_width;
+		u16 max_height;
+		u16 width_inc;
+		u16 height_inc;
 
 		struct window_normal_hints_aspect {
-			i16 numerator;
-			i16 denominator;
+			u16 numerator;
+			u16 denominator;
 		} min_aspect, max_aspect;
 
-		i16 base_width;
-		i16 base_height;
-		i16 gravity;
+		u16 base_width;
+		u16 base_height;
+		u16 gravity;
 	} window_hints;
 
 	struct window_protocols {
