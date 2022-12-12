@@ -57,7 +57,7 @@ typedef struct sl_window_mutable {
 		u16 base_width;
 		u16 base_height;
 		u16 gravity;
-	} window_hints;
+	} normal_hints;
 
 	struct window_protocols {
 		bool take_focus;
@@ -289,7 +289,7 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 
 	warn_log("ignoring user supplied");
 
-	((sl_window_mutable*)window)->window_hints = (struct window_normal_hints) {
+	((sl_window_mutable*)window)->normal_hints = (struct window_normal_hints) {
 	0, 0, 0, 0, 0, 0, {0, 0},
         {0, 0},
         0, 0, 0
@@ -297,55 +297,55 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 	// ^^^^^^^ epic clang-format ^^^^^^^
 
 	if (size_hints.flags & PMinSize && size_hints.flags & PBaseSize) {
-		((sl_window_mutable*)window)->window_hints.min_width = size_hints.min_width;
-		((sl_window_mutable*)window)->window_hints.min_height = size_hints.min_height;
+		((sl_window_mutable*)window)->normal_hints.min_width = size_hints.min_width;
+		((sl_window_mutable*)window)->normal_hints.min_height = size_hints.min_height;
 
-		((sl_window_mutable*)window)->window_hints.base_width = size_hints.base_width;
-		((sl_window_mutable*)window)->window_hints.base_height = size_hints.base_height;
+		((sl_window_mutable*)window)->normal_hints.base_width = size_hints.base_width;
+		((sl_window_mutable*)window)->normal_hints.base_height = size_hints.base_height;
 	} else if (size_hints.flags & PMinSize) {
-		((sl_window_mutable*)window)->window_hints.min_width = size_hints.min_width;
-		((sl_window_mutable*)window)->window_hints.min_height = size_hints.min_height;
+		((sl_window_mutable*)window)->normal_hints.min_width = size_hints.min_width;
+		((sl_window_mutable*)window)->normal_hints.min_height = size_hints.min_height;
 
-		((sl_window_mutable*)window)->window_hints.base_width = size_hints.min_width;
-		((sl_window_mutable*)window)->window_hints.base_height = size_hints.min_height;
+		((sl_window_mutable*)window)->normal_hints.base_width = size_hints.min_width;
+		((sl_window_mutable*)window)->normal_hints.base_height = size_hints.min_height;
 	} else if (size_hints.flags & PBaseSize) {
-		((sl_window_mutable*)window)->window_hints.min_width = size_hints.base_width;
-		((sl_window_mutable*)window)->window_hints.min_height = size_hints.base_height;
+		((sl_window_mutable*)window)->normal_hints.min_width = size_hints.base_width;
+		((sl_window_mutable*)window)->normal_hints.min_height = size_hints.base_height;
 
-		((sl_window_mutable*)window)->window_hints.base_width = size_hints.base_width;
-		((sl_window_mutable*)window)->window_hints.base_height = size_hints.base_height;
+		((sl_window_mutable*)window)->normal_hints.base_width = size_hints.base_width;
+		((sl_window_mutable*)window)->normal_hints.base_height = size_hints.base_height;
 	} else {
 		assert_not_reached();
 	}
 
 	if (size_hints.flags & PMaxSize) {
-		((sl_window_mutable*)window)->window_hints.max_width = size_hints.max_width;
-		((sl_window_mutable*)window)->window_hints.max_height = size_hints.max_height;
+		((sl_window_mutable*)window)->normal_hints.max_width = size_hints.max_width;
+		((sl_window_mutable*)window)->normal_hints.max_height = size_hints.max_height;
 	}
 
 	if (size_hints.flags & PResizeInc) {
-		((sl_window_mutable*)window)->window_hints.width_inc = size_hints.width_inc;
-		((sl_window_mutable*)window)->window_hints.height_inc = size_hints.height_inc;
+		((sl_window_mutable*)window)->normal_hints.width_inc = size_hints.width_inc;
+		((sl_window_mutable*)window)->normal_hints.height_inc = size_hints.height_inc;
 	}
 
 	if (size_hints.flags & PAspect) {
-		((sl_window_mutable*)window)->window_hints.min_aspect =
+		((sl_window_mutable*)window)->normal_hints.min_aspect =
 		(struct window_normal_hints_aspect) {.numerator = size_hints.min_aspect.x, .denominator = size_hints.y};
-		((sl_window_mutable*)window)->window_hints.max_aspect =
+		((sl_window_mutable*)window)->normal_hints.max_aspect =
 		(struct window_normal_hints_aspect) {.numerator = size_hints.max_aspect.x, .denominator = size_hints.y};
 	}
 
 	if (size_hints.flags & PWinGravity) {
-		((sl_window_mutable*)window)->window_hints.gravity = size_hints.win_gravity;
+		((sl_window_mutable*)window)->normal_hints.gravity = size_hints.win_gravity;
 	}
 
 	warn_log_va(
 	"[%lu] window normal hints: min_width %u, min_height %u, max_width %u, max_height %u, width_inc %u, height_inc %u, min_aspect %u/%u, max_aspect "
 	"%u/%u, base_width %u, base_height %u, gravity %u",
-	window->x_window, window->window_hints.min_width, window->window_hints.min_height, window->window_hints.max_width, window->window_hints.max_height,
-	window->window_hints.width_inc, window->window_hints.height_inc, window->window_hints.min_aspect.numerator,
-	window->window_hints.min_aspect.denominator, window->window_hints.max_aspect.numerator, window->window_hints.max_aspect.denominator,
-	window->window_hints.base_width, window->window_hints.base_height, window->window_hints.gravity
+	window->x_window, window->normal_hints.min_width, window->normal_hints.min_height, window->normal_hints.max_width, window->normal_hints.max_height,
+	window->normal_hints.width_inc, window->normal_hints.height_inc, window->normal_hints.min_aspect.numerator,
+	window->normal_hints.min_aspect.denominator, window->normal_hints.max_aspect.numerator, window->normal_hints.max_aspect.denominator,
+	window->normal_hints.base_width, window->normal_hints.base_height, window->normal_hints.gravity
 	);
 }
 
@@ -489,7 +489,7 @@ void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 	    or by raising it to the top of the stack.
 	*/
 
-	warn_log("todo: wm_window_hints");
+	warn_log("todo: wm_normal_hints");
 }
 
 void sl_set_window_class (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {

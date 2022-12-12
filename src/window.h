@@ -103,7 +103,7 @@ typedef struct sl_window {
 		u16 base_width;
 		u16 base_height;
 		u16 gravity;
-	} const window_hints;
+	} const normal_hints;
 
 	struct {
 		bool take_focus;

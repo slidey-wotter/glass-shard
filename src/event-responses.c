@@ -40,6 +40,7 @@
 #define parse_mask_long(m) (m & ~(display->numlockmask | LockMask) & (ShiftMask | ControlMask | Mod1Mask | Mod2Mask | Mod3Mask | Mod4Mask | Mod5Mask))
 
 #define max(a, b) ((a > b) ? a : b)
+#define min(a, b) ((a > b) ? b : a)
 
 #define window_handle_start \
 	for (size_t i = 0; i < display->windows->size; ++i) { \
@@ -252,10 +253,44 @@ void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 	}
 
 	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask | ControlMask)) {
-		raised_window->saved_dimensions.width =
-		max(raised_window->window_hints.min_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x);
-		raised_window->saved_dimensions.height =
-		max(raised_window->window_hints.min_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y);
+		if (raised_window->normal_hints.min_width != 0) {
+			if (raised_window->normal_hints.max_width != 0) {
+				raised_window->saved_dimensions.width = min(
+				raised_window->normal_hints.max_width,
+				max(raised_window->normal_hints.min_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x)
+				);
+			} else {
+				raised_window->saved_dimensions.width =
+				max(raised_window->normal_hints.min_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x);
+			}
+		} else {
+			if (raised_window->normal_hints.max_width != 0) {
+				raised_window->saved_dimensions.width =
+				min(raised_window->normal_hints.max_width, raised_window->saved_dimensions.width + event->x_root - display->mouse.x);
+			} else {
+				raised_window->saved_dimensions.width = raised_window->saved_dimensions.width + event->x_root - display->mouse.x;
+			}
+		}
+
+		if (raised_window->normal_hints.min_height != 0) {
+			if (raised_window->normal_hints.max_height != 0) {
+				raised_window->saved_dimensions.height = min(
+				raised_window->normal_hints.max_height,
+				max(raised_window->normal_hints.min_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y)
+				);
+			} else {
+				raised_window->saved_dimensions.height =
+				max(raised_window->normal_hints.min_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y);
+			}
+		} else {
+			if (raised_window->normal_hints.max_height != 0) {
+				raised_window->saved_dimensions.height =
+				min(raised_window->normal_hints.max_height, raised_window->saved_dimensions.height + event->y_root - display->mouse.y);
+			} else {
+				raised_window->saved_dimensions.height = raised_window->saved_dimensions.height + event->y_root - display->mouse.y;
+			}
+		}
+
 		display->mouse.x = event->x_root;
 		display->mouse.y = event->y_root;
 
