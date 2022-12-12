@@ -461,7 +461,7 @@ static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unus
 static void map_unstarted_window (sl_display* display, size_t index) {
 	sl_window* const window = sl_window_at(display, index);
 
-	window->started = true;
+	sl_window_start(window);
 	window->mapped = true;
 	window->workspace = display->current_workspace;
 

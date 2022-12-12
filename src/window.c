@@ -26,7 +26,8 @@
 
 typedef struct sl_window_mutable {
 	Window x_window;
-	bool started, mapped, fullscreen, maximized;
+	bool started;
+	bool mapped, fullscreen, maximized;
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
@@ -39,6 +40,11 @@ typedef struct sl_window_mutable {
 
 	u16 allowed_actions;
 } sl_window_mutable;
+
+void sl_window_start (sl_window* window) {
+	((sl_window_mutable*)window)->started = true;
+	((sl_window_mutable*)window)->allowed_actions = all_allowed_actions;
+}
 
 void sl_window_swap (sl_window* lhs, sl_window* rhs) {
 	sl_window_mutable temp = *(sl_window_mutable*)lhs;

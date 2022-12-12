@@ -23,11 +23,26 @@
 #include "window-dimensions.h"
 #include "workspace-type.h"
 
-enum { allowed_action_move_bit = 1 << 0, allowed_action_resize_bit = 1 << 1, allowed_action_minimize_bit = 1 << 2, allowed_action_shade_bit = 1 << 3, allowed_action_stick_bit = 1 << 4, allowed_action_maximize_horz_bit = 1 << 5, allowed_action_maximize_vert_bit = 1 << 6, allowed_action_fullscreen_bit = 1 << 7, allowed_action_change_desktop_bit = 1 << 8, allowed_action_close_bit = 1 << 9, allowed_action_above_bit = 1 << 10, allowed_action_below_bit = 1 << 11 };
+enum {
+	allowed_action_move_bit = 1 << 0,
+	allowed_action_resize_bit = 1 << 1,
+	allowed_action_minimize_bit = 1 << 2,
+	allowed_action_shade_bit = 1 << 3,
+	allowed_action_stick_bit = 1 << 4,
+	allowed_action_maximize_horz_bit = 1 << 5,
+	allowed_action_maximize_vert_bit = 1 << 6,
+	allowed_action_fullscreen_bit = 1 << 7,
+	allowed_action_change_desktop_bit = 1 << 8,
+	allowed_action_close_bit = 1 << 9,
+	allowed_action_above_bit = 1 << 10,
+	allowed_action_below_bit = 1 << 11,
+	all_allowed_actions = 0b111111111111
+};
 
 typedef struct sl_window {
 	Window const x_window;
-	bool started, mapped, fullscreen, maximized;
+	bool const started;
+	bool mapped, fullscreen, maximized;
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
@@ -43,6 +58,8 @@ typedef struct sl_window {
 
 	u16 const allowed_actions;
 } sl_window;
+
+extern void sl_window_start (sl_window* window);
 
 extern void sl_window_swap (sl_window* lhs, sl_window* rhs);
 
