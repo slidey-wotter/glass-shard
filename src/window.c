@@ -315,8 +315,6 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 
 		((sl_window_mutable*)window)->normal_hints.base_width = size_hints.base_width;
 		((sl_window_mutable*)window)->normal_hints.base_height = size_hints.base_height;
-	} else {
-		assert_not_reached();
 	}
 
 	if (size_hints.flags & PMaxSize) {
