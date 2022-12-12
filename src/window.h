@@ -39,11 +39,6 @@ enum {
 	all_allowed_actions = 0b111111111111
 };
 
-struct sl_sized_ustring {
-	uchar const* data;
-	size_t const size;
-};
-
 struct sl_sized_string {
 	char const* data;
 	size_t const size;
@@ -56,8 +51,8 @@ typedef struct sl_window {
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
-	struct sl_sized_ustring const name;
-	struct sl_sized_ustring const icon_name;
+	struct sl_sized_string const name;
+	struct sl_sized_string const icon_name;
 
 	struct {
 		i16 min_width;
@@ -82,7 +77,10 @@ typedef struct sl_window {
 		bool delete_window;
 	} const have_protocols;
 
-	struct sl_sized_string net_wm_name;
+	struct sl_sized_string const net_wm_name;
+	struct sl_sized_string const net_wm_visible_name;
+	struct sl_sized_string const net_wm_icon_name;
+	struct sl_sized_string const net_wm_visible_icon_name;
 
 	u16 const allowed_actions;
 } sl_window;

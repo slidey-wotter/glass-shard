@@ -26,8 +26,8 @@
 #include "workspace-type.h"
 
 enum {
-	atom,
-	utf8_string,
+	type_atom,
+	type_utf8_string,
 	wm_protocols,
 	wm_colormap_windows,
 	wm_delete_window,

@@ -26,11 +26,6 @@
 #include "compiler-differences.h"
 #include "display.h"
 
-struct sl_sized_ustring_mutable {
-	uchar* data;
-	size_t size;
-};
-
 struct sl_sized_string_mutable {
 	char* data;
 	size_t size;
@@ -43,8 +38,8 @@ typedef struct sl_window_mutable {
 	sl_window_dimensions saved_dimensions;
 	workspace_type workspace;
 
-	struct sl_sized_ustring_mutable name;
-	struct sl_sized_ustring_mutable icon_name;
+	struct sl_sized_string_mutable name;
+	struct sl_sized_string_mutable icon_name;
 
 	struct window_normal_hints {
 		i16 min_width;
@@ -70,6 +65,9 @@ typedef struct sl_window_mutable {
 	} have_protocols;
 
 	struct sl_sized_string_mutable net_wm_name;
+	struct sl_sized_string_mutable net_wm_visible_name;
+	struct sl_sized_string_mutable net_wm_icon_name;
+	struct sl_sized_string_mutable net_wm_visible_icon_name;
 
 	u16 allowed_actions;
 } sl_window_mutable;
@@ -133,6 +131,19 @@ void sl_window_swap (sl_window* lhs, sl_window* rhs) {
   They are summarized in the table in Summary of Window Manager Property Types
 */
 
+static void window_set_text_property (sl_window* window, sl_display* display, Atom atom, struct sl_sized_string_mutable* sized_string) {
+	XTextProperty text_property;
+
+	XGetTextProperty(display->x_display, window->x_window, &text_property, atom);
+
+	if (sized_string->data) free(sized_string->data);
+
+	warn_log("ignoring encoding and format");
+	sized_string->size = text_property.nitems;
+	sized_string->data = malloc(sizeof(uchar) * sized_string->size);
+	memcpy(sized_string->data, text_property.value, sized_string->size);
+}
+
 void sl_set_window_name (sl_window* window, sl_display* display) {
 	/*
 	  The WM_NAME property is an uninterpreted string that the client wants the window
@@ -159,16 +170,7 @@ void sl_set_window_name (sl_window* window, sl_display* display) {
 	  Even window managers that support headline bars will place some limit on the
 	  length of the WM_NAME string that can be visible; brevity here will pay dividends.
 	*/
-	XTextProperty text_property;
-
-	XGetTextProperty(display->x_display, window->x_window, &text_property, XA_WM_NAME);
-
-	if (window->name.data) free(((sl_window_mutable*)window)->name.data);
-
-	warn_log("ignoring encoding and format");
-	((sl_window_mutable*)window)->name.size = text_property.nitems;
-	((sl_window_mutable*)window)->name.data = malloc(sizeof(uchar) * window->name.size);
-	memcpy(((sl_window_mutable*)window)->name.data, text_property.value, window->name.size);
+	window_set_text_property(window, display, XA_WM_NAME, (struct sl_sized_string_mutable*)&window->name);
 
 	warn_log_va("[%lu] name: \"%.*s\"", window->x_window, (int)window->name.size, window->name.data);
 }
@@ -184,14 +186,7 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 	  Clients should not attempt to display this string in their icon pixmaps or windows;
 	  rather, they should rely on the window manager to do so.
 	*/
-	XTextProperty text_property;
-
-	XGetTextProperty(display->x_display, window->x_window, &text_property, XA_WM_ICON_NAME);
-
-	warn_log("ignoring encoding and format");
-	((sl_window_mutable*)window)->icon_name.size = text_property.nitems;
-	((sl_window_mutable*)window)->icon_name.data = malloc(sizeof(uchar) * window->icon_name.size);
-	memcpy(((sl_window_mutable*)window)->icon_name.data, text_property.value, window->icon_name.size);
+	window_set_text_property(window, display, XA_WM_ICON_NAME, (struct sl_sized_string_mutable*)&window->icon_name);
 
 	warn_log_va("[%lu] icon_name: \"%.*s\"", window->x_window, (int)window->icon_name.size, window->icon_name.data);
 }
@@ -623,22 +618,14 @@ void sl_set_window_client_machine (M_maybe_unused sl_window* window, M_maybe_unu
   Extended Window Manager Hints: Application Window Properties
 */
 
-void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
-	/*
-	  _NET_WM_NAME, UTF8_STRING
-
-	  The Client SHOULD set this to the title of the window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_NAME.
-	*/
-
-	warn_log("todo: _net_wm_name");
-
+static void window_set_net_utf8_string_property (sl_window* window, sl_display* display, size_t atom_index, struct sl_sized_string_mutable* sized_string) {
 	Atom actual_type;
 	int actual_format;
 	ulong items_size;
 	ulong bytes_after;
 	uchar* prop = NULL;
 
-	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_name], 0, 1, false, display->atoms[utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
+	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 1, false, display->atoms[type_utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
 		warn_log("XGetWindowProperty does not return Success");
 		return;
 	}
@@ -670,7 +657,7 @@ void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
 	  It also ignores the delete argument. The nitems_return argument is empty.
 	*/
 
-	if (actual_type != display->atoms[utf8_string]) {
+	if (actual_type != display->atoms[type_utf8_string]) {
 		XFree(prop);
 		warn_log("atom type mismatch");
 		return;
@@ -694,14 +681,24 @@ void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
 
 	XFree(prop);
 
-	XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_name], 0, 2 + (bytes_after >> 2), false, display->atoms[utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
+	XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 2 + (bytes_after >> 2), false, display->atoms[type_utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
 
-	((sl_window_mutable*)window)->net_wm_name.size = items_size;
-	if (window->net_wm_name.data) free(((sl_window_mutable*)window)->net_wm_name.data);
-	((sl_window_mutable*)window)->net_wm_name.data = malloc(window->net_wm_name.size);
-	memcpy(((sl_window_mutable*)window)->net_wm_name.data, prop, window->net_wm_name.size);
+	sized_string->size = items_size;
+	if (sized_string->data) free(sized_string->data);
+	sized_string->data = malloc(sized_string->size);
+	memcpy(sized_string->data, prop, sized_string->size);
 
 	XFree(prop);
+}
+
+void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
+	/*
+	  _NET_WM_NAME, UTF8_STRING
+
+	  The Client SHOULD set this to the title of the window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_NAME.
+	*/
+
+	window_set_net_utf8_string_property(window, display, net_wm_name, (struct sl_sized_string_mutable*)&window->net_wm_name);
 
 	warn_log_va("[%lu] net_wm_name \"%.*s\"", window->x_window, (int)window->net_wm_name.size, window->net_wm_name.data);
 }
@@ -715,7 +712,9 @@ void sl_window_set_net_wm_visible_name (M_maybe_unused sl_window* window, M_mayb
 	  Rationale: This property is for Window Managers that display a title different from the _NET_WM_NAME or WM_NAME of the window (i.e. xterm <1>, xterm <2>, ... is shown, but _NET_WM_NAME / WM_NAME is still xterm for each window) thereby allowing Pagers to display the same title as the Window Manager.
 	*/
 
-	warn_log("todo: _net_wm_visible_name");
+	window_set_net_utf8_string_property(window, display, net_wm_visible_name, (struct sl_sized_string_mutable*)&window->net_wm_visible_name);
+
+	warn_log_va("[%lu] net_wm_visible_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_name.size, window->net_wm_visible_name.data);
 }
 
 void sl_window_set_net_wm_icon_name (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -725,7 +724,9 @@ void sl_window_set_net_wm_icon_name (M_maybe_unused sl_window* window, M_maybe_u
 	  The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_ICON_NAME.
 	*/
 
-	warn_log("todo: _net_wm_icon_name");
+	window_set_net_utf8_string_property(window, display, net_wm_icon_name, (struct sl_sized_string_mutable*)&window->net_wm_icon_name);
+
+	warn_log_va("[%lu] net_wm_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_icon_name.size, window->net_wm_icon_name.data);
 }
 
 void sl_window_set_net_wm_visible_icon_name (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -735,7 +736,9 @@ void sl_window_set_net_wm_visible_icon_name (M_maybe_unused sl_window* window, M
 	  If the Window Manager displays an icon name other than _NET_WM_ICON_NAME the Window Manager MUST set this to the title displayed in UTF-8 encoding.
 	*/
 
-	warn_log("todo: _net_wm_visible_icon_name");
+	window_set_net_utf8_string_property(window, display, net_wm_visible_icon_name, (struct sl_sized_string_mutable*)&window->net_wm_visible_icon_name);
+
+	warn_log_va("[%lu] net_wm_visible_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_icon_name.size, window->net_wm_visible_icon_name.data);
 }
 
 void sl_window_set_net_wm_desktop (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -964,7 +967,7 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 
 	size_t offset = 0;
 
-	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
+	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[type_atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
 		warn_log("XGetWindowProperty does not return Success");
 		return;
 	}
@@ -996,7 +999,7 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	  It also ignores the delete argument. The nitems_return argument is empty.
 	*/
 
-	if (actual_type != display->atoms[atom]) {
+	if (actual_type != display->atoms[type_atom]) {
 		XFree(prop);
 		warn_log("atom type mismatch");
 		return;
@@ -1039,7 +1042,7 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 		if (bytes_after == 0) break;
 
 		++offset;
-		XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
+		XGetWindowProperty(display->x_display, window->x_window, display->atoms[net_wm_allowed_actions], offset, 1, false, display->atoms[type_atom], &actual_type, &actual_format, &items_size, &bytes_after, &prop);
 	}
 
 	char buffer[256] = "";
