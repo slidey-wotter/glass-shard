@@ -59,6 +59,8 @@ typedef struct sl_window_stack_mutable {
 	struct sl_workspace_vector_mutable workspace_vector;
 
 	workspace_type current_workspace;
+
+	size_t focused_window_index;
 } sl_window_stack_mutable;
 
 static void workspace_vector_initialize (size_t* restrict indexes, size_t size) {
@@ -152,8 +154,8 @@ void sl_window_stack_create (sl_window_stack* restrict this, size_t size) {
 		return;
 	}
 
-	*(sl_window_stack_mutable*)this =
-	(sl_window_stack_mutable) {.data = (sl_window_node_mutable*)data, .size = size, .allocated_size = allocated_size, .current_workspace = 0};
+	*(sl_window_stack_mutable*)this = (sl_window_stack_mutable
+	) {.data = (sl_window_node_mutable*)data, .size = size, .allocated_size = allocated_size, .focused_window_index = M_invalid_index};
 
 	workspace_vector_create(&this->workspace_vector, 1);
 }
@@ -187,7 +189,13 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 	}
 
 	for (size_t i = 0, j = 0; i < this->size; ++i) {
-		if (this->data[i].flagged_for_deletion) continue;
+		if (this->data[i].flagged_for_deletion) {
+			if (this->focused_window_index == i) ((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
+
+			continue;
+		}
+
+		if (this->focused_window_index == i) ((sl_window_stack_mutable*)this)->focused_window_index = j;
 
 		new_data[j] = *(sl_window_node_mutable*)&this->data[i];
 	}
@@ -372,4 +380,14 @@ void sl_window_stack_set_to_top (sl_window_stack* restrict this, size_t index) {
 
 	((sl_window_stack_mutable*)this)->data[index].next = bottom;
 	((sl_window_stack_mutable*)this)->data[bottom].previous = index;
+}
+
+void set_focused_window (sl_window_stack* restrict this, size_t index) { ((sl_window_stack_mutable*)this)->focused_window_index = index; }
+
+sl_window* get_focused_window (sl_window_stack* restrict this) {
+	if (this->focused_window_index == M_invalid_index) return NULL;
+
+	if (this->data[this->focused_window_index].flagged_for_deletion) return NULL;
+
+	return (sl_window*)&this->data[this->focused_window_index].window;
 }

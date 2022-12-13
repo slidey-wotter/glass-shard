@@ -38,4 +38,6 @@ typedef struct sl_window_stack {
 	struct sl_workspace_vector workspace_vector;
 
 	workspace_type const current_workspace;
+
+	size_t const focused_window_index;
 } sl_window_stack;

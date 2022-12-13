@@ -23,6 +23,7 @@
 #include "message.h"
 #include "vector.h"
 #include "window-dimensions.h"
+#include "window-stack.h"
 #include "workspace-type.h"
 
 enum {
@@ -163,19 +164,15 @@ static char* const atoms_string_list[] = {
 #define M_net_wm_state_add    1
 #define M_net_wm_state_toggle 2
 
-#define M_invalid_window_index (size_t) - 1
-
-#define is_valid_window_index(M_index) (M_index != M_invalid_window_index)
-
 typedef struct sl_display {
 	Display* const x_display;
 	Window const root;
 	Cursor const cursor;
-	sl_vector* const windows;
+	sl_window_stack const window_stack;
 	sl_vector* const unmanaged_windows;
 	Atom const atoms[atoms_size];
 	sl_window_dimensions const dimensions;
-	size_t focused_window_index, raised_window_index;
+
 	uint numlockmask;
 
 	struct sl_u32_position {
@@ -183,7 +180,6 @@ typedef struct sl_display {
 		u32 y;
 	} mouse;
 
-	workspace_type current_workspace, workspaces_size;
 	bool user_input_since_last_workspace_change;
 } sl_display;
 
