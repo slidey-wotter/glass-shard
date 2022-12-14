@@ -145,7 +145,7 @@ int main () {
 
 		if (window_manager()->logout) {
 			for (size_t i = 0; i < display->window_stack.size; ++i) {
-				if (!display->window_stack.data[i].flagged_for_deletion) goto out;
+				if (!(display->window_stack.data[i].flagged_for_deletion | !sl_window_stack_is_valid_index(display->window_stack.data[i].next))) goto out;
 			}
 			warn_log("Meta: Successfuly waited for all window to delete themselves\nexiting...\n");
 			sl_display_delete(display);

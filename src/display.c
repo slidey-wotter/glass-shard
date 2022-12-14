@@ -292,8 +292,7 @@ void sl_cycle_windows_up (sl_display* restrict this, Time time) {
 	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
 	if (window) {
-		sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
-		sl_focus_window(this, this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace], time);
+		sl_focus_raised_window(this, time);
 		raise_window_impl(this, window);
 	}
 }
@@ -304,8 +303,7 @@ void sl_cycle_windows_down (sl_display* restrict this, Time time) {
 	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
 	if (window) {
-		sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
-		sl_focus_window(this, this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace], time);
+		sl_focus_raised_window(this, time);
 		raise_window_impl(this, window);
 	}
 }
@@ -656,5 +654,6 @@ void sl_delete_raised_window (sl_display* restrict this, Time time) {
 
 void sl_delete_all_windows (sl_display* restrict this, Time time) {
 	for (size_t i = 0; i < this->window_stack.size; ++i)
-		if (!this->window_stack.data[i].flagged_for_deletion) delete_window_impl(this, (sl_window*)&this->window_stack.data[i].window, time);
+		if (!this->window_stack.data[i].flagged_for_deletion && sl_window_stack_is_valid_index(this->window_stack.data[i].next))
+			delete_window_impl(this, (sl_window*)&this->window_stack.data[i].window, time);
 }
