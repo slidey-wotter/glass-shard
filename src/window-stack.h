@@ -21,8 +21,6 @@
 #include "window.h"
 #include "workspace-type.h"
 
-#define M_invalid_index ((size_t)-1)
-
 struct sl_workspace_vector {
 	size_t const* indexes;
 	size_t const size;
@@ -41,7 +39,7 @@ typedef struct sl_window_stack {
 	size_t const size;
 	size_t const allocated_size;
 
-	struct sl_workspace_vector workspace_vector;
+	struct sl_workspace_vector const workspace_vector;
 
 	workspace_type const current_workspace;
 
@@ -50,7 +48,7 @@ typedef struct sl_window_stack {
 
 void sl_window_stack_create (sl_window_stack* restrict, size_t size);
 void sl_window_stack_delete (sl_window_stack* restrict);
-void sl_window_stack_add_window (sl_window_stack* restrict, sl_window window);
+void sl_window_stack_add_window (sl_window_stack* restrict, sl_window* window);
 void sl_window_stack_remove_window (sl_window_stack* restrict, size_t index);
 void sl_window_stack_add_window_to_current_workspace (sl_window_stack* restrict, size_t index);
 void sl_window_stack_remove_window_from_its_workspace (sl_window_stack* restrict, size_t index);
@@ -62,5 +60,10 @@ void sl_window_stack_cycle_workspace_up (sl_window_stack* restrict);
 void sl_window_stack_cycle_workspace_down (sl_window_stack* restrict);
 void sl_window_stack_set_raised_window (sl_window_stack* restrict, size_t index);
 void sl_window_stack_set_focused_window (sl_window_stack* restrict, size_t index);
+void sl_window_stack_set_raised_window_as_focused (sl_window_stack* restrict);
+void sl_window_stack_set_current_workspace (sl_window_stack* restrict, workspace_type workspace);
+
 sl_window* sl_window_stack_get_raised_window (sl_window_stack* restrict);
 sl_window* sl_window_stack_get_focused_window (sl_window_stack* restrict);
+size_t sl_window_stack_get_raised_window_index (sl_window_stack* restrict);
+bool sl_window_stack_is_valid_index(size_t);

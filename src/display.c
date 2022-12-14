@@ -33,17 +33,13 @@ typedef struct sl_display_mutable {
 	Display* x_display;
 	Window root;
 	Cursor cursor;
-	sl_vector* windows;
-	sl_vector* unmanaged_windows;
+	sl_window_stack window_stack;
 	Atom atoms[atoms_size];
 	sl_window_dimensions dimensions;
-	size_t focused_window_index, raised_window_index;
+
 	uint numlockmask;
 
 	struct sl_u32_position mouse;
-
-	workspace_type current_workspace, workspaces_size;
-	bool user_input_since_last_workspace_change;
 } sl_display_mutable;
 
 static uint get_numlock_mask (Display* display) {
@@ -74,12 +70,7 @@ static void set_net_supported (sl_display* restrict display) {
 	);
 }
 
-sl_display* sl_display_create (Display* x_display) {
-	if (!x_display) {
-		warn_log("input of display_create is null");
-		return NULL;
-	}
-
+sl_display* sl_display_create (Display* restrict x_display) {
 	sl_display_mutable* display = malloc(sizeof(sl_display_mutable));
 	if (!display) {
 		warn_log("invalid allocation");
@@ -90,32 +81,17 @@ sl_display* sl_display_create (Display* x_display) {
 	display->root = DefaultRootWindow(x_display);
 	display->cursor = XCreateFontCursor(display->x_display, XC_left_ptr);
 
-	if (sl_type_from_string("sl_window") == (u32)-1) {
-		sl_register_type((sl_type_register) {.name = "sl_window", .size = sizeof(sl_window)});
-	}
+	sl_window_stack_create(&display->window_stack, 0);
 
-	display->windows = sl_vector_create(0, sl_type_from_string("sl_window"));
-	if (!display->windows) {
-		warn_log("invalid allocation");
+	if (!display->window_stack.data) {
 		free(display);
-		return NULL;
-	}
-
-	display->unmanaged_windows = sl_vector_create(0, sl_type_from_string("sl_window"));
-	if (!display->unmanaged_windows) {
-		warn_log("invalid allocation");
-		free(display);
-		free(display->windows);
 		return NULL;
 	}
 
 	XInternAtoms(x_display, (char**)atoms_string_list, atoms_size, false, display->atoms);
 
-	display->raised_window_index = M_invalid_window_index;
-	display->focused_window_index = M_invalid_window_index;
 	display->dimensions =
 	(sl_window_dimensions) {.x = 0, .y = 0, .width = XDisplayWidth(display->x_display, 0), .height = XDisplayHeight(display->x_display, 0)};
-	display->workspaces_size = 4;
 
 #ifdef D_debug
 	XSynchronize(display->x_display, true);
@@ -130,43 +106,25 @@ sl_display* sl_display_create (Display* x_display) {
 	}
 
 	sl_grab_keys((sl_display*)display);
-	set_net_supported(display);
+	set_net_supported((sl_display*)display);
 
 	return (sl_display*)display;
 }
 
-void sl_display_delete (sl_display* display) {
-	if (!display) {
-		warn_log("input of display delete already null");
-		return;
-	}
+void sl_display_delete (sl_display* restrict this) {
+	sl_window_stack_delete((sl_window_stack*)&this->window_stack);
 
-	sl_vector_delete(display->windows);
-	sl_vector_delete(display->unmanaged_windows);
+	XFreeCursor(this->x_display, this->cursor);
 
-	XFreeCursor(display->x_display, display->cursor);
-
-	free(display);
+	free(this);
 }
 
-void sl_notify_supported_atom (sl_display* display, i8 index) {
-	XClientMessageEvent event = (XClientMessageEvent) {
-	.type = ClientMessage,
-	.serial = 0,
-	.display = display->x_display,
-	.window = display->root,
-	.message_type = display->atoms[net_supported],
-	.format = 32,
-	.data.l[0] = display->atoms[index]};
-	XSendEvent(display->x_display, display->root, false, SubstructureNotifyMask | SubstructureRedirectMask, (XEvent*)&event);
-}
+void sl_grab_keys (sl_display* restrict this) {
+	Display* const x_display = this->x_display;
+	Window const root = this->root;
 
-void sl_grab_keys (sl_display* display) {
-	Display* const x_display = display->x_display;
-	Window const root = display->root;
-
-	display->numlockmask = get_numlock_mask(x_display);
-	uint const modifiers[] = {0, display->numlockmask, LockMask, display->numlockmask | LockMask};
+	this->numlockmask = get_numlock_mask(x_display);
+	uint const modifiers[] = {0, this->numlockmask, LockMask, this->numlockmask | LockMask};
 	XUngrabKey(x_display, AnyKey, AnyModifier, root);
 	for (u8 i = 0; i < 4; ++i) {
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XF86XK_AudioLowerVolume), modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
@@ -237,257 +195,15 @@ void sl_grab_keys (sl_display* display) {
 	}
 }
 
-sl_window* sl_focused_window (sl_display* display) { return sl_window_at(display, display->focused_window_index); }
-
-sl_window* sl_raised_window (sl_display* display) { return sl_window_at(display, display->raised_window_index); }
-
-sl_window* sl_window_at (sl_display* display, size_t index) { return sl_vector_at(display->windows, index); }
-
-sl_window* sl_unmanaged_window_at (sl_display* display, size_t index) { return sl_vector_at(display->unmanaged_windows, index); }
-
-static size_t window_index_up (sl_display* display, size_t index) { return (index + 1) % display->windows->size; }
-
-static size_t window_index_down (sl_display* display, size_t index) {
-	if (index == 0) return display->windows->size - 1;
-
-	return index - 1;
-}
-
-static void cycle_workspace_up (sl_display* display) {
-	++display->current_workspace;
-	display->current_workspace %= display->workspaces_size;
-}
-
-static void cycle_workspace_down (sl_display* display) {
-	if (display->current_workspace == 0)
-		display->current_workspace = display->workspaces_size - 1;
-	else
-		--display->current_workspace;
-}
-
-#define direction_gen(M_func) M_func(up) M_func(down)
-
-#define cycle_windows_gen(M_direction) \
-	void sl_cycle_windows_##M_direction(sl_display* display, Time time) { \
-		if (!is_valid_window_index(display->raised_window_index)) return; \
-\
-		for (size_t next_raised_window_index = window_index_##M_direction(display, display->raised_window_index);; \
-		     next_raised_window_index = window_index_##M_direction(display, next_raised_window_index)) { \
-			if (next_raised_window_index == display->raised_window_index) { \
-				display->focused_window_index = M_invalid_window_index; \
-				display->raised_window_index = M_invalid_window_index; \
-				return; \
-			} \
-\
-			sl_window* const window = sl_window_at(display, next_raised_window_index); \
-\
-			if (window->mapped && window->workspace == display->current_workspace) \
-				return sl_focus_and_raise_window(display, next_raised_window_index, time); \
-		} \
-	}
-
-direction_gen(cycle_windows_gen)
-
-void sl_push_workspace(sl_display* display) {
-	++display->workspaces_size;
-}
-
-void sl_pop_workspace (sl_display* display, Time time) {
-	if (display->workspaces_size < 2) return;
-
-	if (display->current_workspace == (display->workspaces_size - 1)) {
-		display->user_input_since_last_workspace_change = false;
-		--display->current_workspace;
-		sl_map_windows_for_current_workspace(display);
-	} else if (display->current_workspace == (display->workspaces_size - 2)) {
-		display->user_input_since_last_workspace_change = false;
-		sl_map_windows_for_next_workspace(display);
-	}
-
-	for (size_t i = display->windows->size - 1;; --i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (i > display->raised_window_index && window->mapped && window->workspace == (display->workspaces_size - 1)) {
-			size_t saved_index = display->raised_window_index;
-			display->raised_window_index = i;
-			sl_swap_window_with_raised_window(display, saved_index, time);
-		}
-
-		if (window->workspace == (display->workspaces_size - 1)) {
-			--window->workspace;
-		}
-
-		if (i == 0) break;
-	}
-
-	--display->workspaces_size;
-}
-
-#define direction_gen_next_prev(M_func) M_func(next, up) M_func(previous, down)
-
-#define sl_direction_workspace_gen(M_fdir, M_dir) \
-	void sl_##M_fdir##_workspace(sl_display* display, Time time) { \
-		if (display->workspaces_size < 2) return; \
-\
-		warn_log("cycle_workspace"); \
-\
-		if (display->windows->size == 0) return cycle_workspace_##M_dir(display); \
-\
-		if (is_valid_window_index(display->focused_window_index)) { \
-			uint const modifiers[] = {0, display->numlockmask, LockMask, display->numlockmask | LockMask}; \
-			sl_window* const focused_window = sl_focused_window(display); \
-			for (size_t i = 0; i < 4; ++i) \
-				XGrabButton( \
-				display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None \
-				); \
-			display->focused_window_index = M_invalid_window_index; \
-		} \
-\
-		sl_unmap_windows_for_current_workspace(display); \
-		cycle_workspace_##M_dir(display); \
-		sl_map_windows_for_current_workspace(display); \
-\
-		for (size_t next_raised_window_index = display->windows->size - 1;; --next_raised_window_index) { \
-			sl_window* const window = sl_window_at(display, next_raised_window_index); \
-\
-			if (window->mapped && window->workspace == display->current_workspace) { \
-				display->raised_window_index = next_raised_window_index; \
-				sl_focus_raised_window(display, time); \
-				return; \
-			} \
-\
-			if (next_raised_window_index == 0) { \
-				display->raised_window_index = M_invalid_window_index; \
-				return; \
-			} \
-		} \
-	}
-
-direction_gen_next_prev(sl_direction_workspace_gen)
-
-extern void sl_switch_to_workspace(sl_display* display, size_t index, Time time) {
-	if (index == display->current_workspace) return;
-	if (index >= display->workspaces_size) return;
-	if (display->workspaces_size < 2) return;
-
-	display->user_input_since_last_workspace_change = false;
-
-	if (display->windows->size == 0) {
-		display->current_workspace = index;
-		return;
-	}
-
-	sl_unmap_windows_for_current_workspace(display);
-	display->current_workspace = index;
-	sl_map_windows_for_current_workspace(display);
-
-	for (size_t next_raised_window_index = display->windows->size - 1;; --next_raised_window_index) {
-		sl_window* const window = sl_window_at(display, next_raised_window_index);
-
-		if (window->mapped && window->workspace == display->current_workspace) {
-			display->raised_window_index = next_raised_window_index;
-			return sl_focus_raised_window(display, time);
-		}
-
-		if (next_raised_window_index == 0) {
-			display->raised_window_index = M_invalid_window_index;
-			return;
-		}
-	}
-}
-
-#define sl_direction_workspace_with_raised_window_gen(M_fdir, M_dir) \
-	void sl_##M_fdir##_workspace_with_raised_window(sl_display* display, Time time) { \
-		if (display->workspaces_size < 2) return; \
-\
-		if (!is_valid_window_index(display->raised_window_index)) return sl_##M_fdir##_workspace(display, time); \
-\
-		if (display->windows->size == 0) return cycle_workspace_##M_dir(display); \
-\
-		sl_unmap_windows_for_current_workspace_except_raised_window(display); \
-		cycle_workspace_##M_dir(display); \
-		sl_map_windows_for_current_workspace_except_raised_window(display); \
-\
-		sl_raised_window(display)->workspace = display->current_workspace; \
-\
-		for (size_t topmost_window_index = display->windows->size - 1;; --topmost_window_index) { \
-			sl_window* const window = sl_window_at(display, topmost_window_index); \
-\
-			if (window->mapped && window->workspace == display->current_workspace) { \
-				size_t saved_index = display->raised_window_index; \
-				display->raised_window_index = topmost_window_index; \
-				sl_swap_window_with_raised_window(display, saved_index, time); \
-				return; \
-			} \
-\
-			if (topmost_window_index == 0) { \
-				sl_focus_raised_window(display, time); \
-				return; \
-			} \
-		} \
-	}
-
-direction_gen_next_prev(sl_direction_workspace_with_raised_window_gen)
-
-static void map_window(sl_display* display, sl_window* window) {
-	window->mapped = true;
-	XMapWindow(display->x_display, window->x_window);
-}
-
-static void unmap_window (sl_display* display, sl_window* window) {
-	window->mapped = false;
-	XUnmapWindow(display->x_display, window->x_window);
-}
-
-void sl_map_windows_for_current_workspace (sl_display* display) {
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->started && window->workspace == display->current_workspace) map_window(display, window);
-	}
-}
-
-void sl_unmap_windows_for_current_workspace (sl_display* display) {
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->started && window->workspace == display->current_workspace) unmap_window(display, window);
-	}
-}
-
-void sl_map_windows_for_next_workspace (sl_display* display) {
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->started && window->workspace == display->current_workspace + 1) map_window(display, window);
-	}
-}
-
-void sl_map_windows_for_current_workspace_except_raised_window (sl_display* display) {
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		if (is_valid_window_index(display->raised_window_index) && i == display->raised_window_index) continue;
-
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->started && window->workspace == display->current_workspace) map_window(display, window);
-	}
-}
-
-void sl_unmap_windows_for_current_workspace_except_raised_window (sl_display* display) {
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		if (is_valid_window_index(display->raised_window_index) && i == display->raised_window_index) continue;
-
-		sl_window* const window = sl_window_at(display, i);
-
-		if (window->started && window->workspace == display->current_workspace) unmap_window(display, window);
-	}
-}
-
-static void focus_window_impl (sl_display* display, sl_window* window, Time time) {
+static void focus_window_impl (sl_display* restrict this, sl_window* restrict window, Time time) {
 	if (!window->hints.input) {
 		// the window must focus itself
 		return;
 	}
+
+	uint const modifiers[] = {0, this->numlockmask, LockMask, this->numlockmask | LockMask};
+	for (size_t i = 0; i < 4; ++i)
+		XUngrabButton(this->x_display, Button1, modifiers[i], window->x_window);
 
 	{
 		warn_log("todo: serial");
@@ -495,17 +211,17 @@ static void focus_window_impl (sl_display* display, sl_window* window, Time time
 		.type = ClientMessage,
 		.serial = 0,
 		.send_event = true,
-		.display = display->x_display,
+		.display = this->x_display,
 		.window = window->x_window,
-		.message_type = display->atoms[net_wm_state],
+		.message_type = this->atoms[net_wm_state],
 		.format = 32,
-		.data = {.l = {M_net_wm_state_add, display->atoms[net_wm_state_focused], 0, 0, 0}}};
+		.data = {.l = {M_net_wm_state_add, this->atoms[net_wm_state_focused], 0, 0, 0}}};
 
-		XSendEvent(display->x_display, display->root, false, 0, (XEvent*)&event);
+		XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
 	}
 
 	if (!window->have_protocols.take_focus) {
-		XSetInputFocus(display->x_display, window->x_window, RevertToPointerRoot, time);
+		XSetInputFocus(this->x_display, window->x_window, RevertToPointerRoot, time);
 		return;
 	}
 
@@ -516,137 +232,232 @@ static void focus_window_impl (sl_display* display, sl_window* window, Time time
 	.type = ClientMessage,
 	.serial = 0,
 	.send_event = true,
-	.display = display->x_display,
+	.display = this->x_display,
 	.window = window->x_window,
-	.message_type = display->atoms[wm_protocols],
+	.message_type = this->atoms[wm_protocols],
 	.format = 32,
-	.data.l[0] = display->atoms[wm_take_focus],
+	.data.l[0] = this->atoms[wm_take_focus],
 	.data.l[1] = time};
 
-	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
+	XSendEvent(this->x_display, window->x_window, false, 0, (XEvent*)&event);
 }
 
-static void unfocus_window_impl (sl_display* display, sl_window* window) {
-	warn_log("todo: serial");
-	XClientMessageEvent event = (XClientMessageEvent) {
-	.type = ClientMessage,
-	.serial = 0,
-	.send_event = true,
-	.display = display->x_display,
-	.window = window->x_window,
-	.message_type = display->atoms[net_wm_state],
-	.format = 32,
-	.data = {.l = {M_net_wm_state_remove, display->atoms[net_wm_state_focused], 0, 0, 0}}};
-
-	XSendEvent(display->x_display, display->root, false, 0, (XEvent*)&event);
-}
-
-static void delete_window_impl (sl_display* display, sl_window* window, Time time) {
-	if (!window->have_protocols.delete_window) {
-		XKillClient(display->x_display, window->x_window);
-		return;
-	}
-
-	warn_log("todo: serial");
-	if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
-
-	XClientMessageEvent event = (XClientMessageEvent) {
-	.type = ClientMessage,
-	.serial = 0,
-	.send_event = true,
-	.display = display->x_display,
-	.window = window->x_window,
-	.message_type = display->atoms[wm_protocols],
-	.format = 32,
-	.data.l[0] = display->atoms[wm_delete_window],
-	.data.l[1] = time};
-
-	XSendEvent(display->x_display, window->x_window, false, 0, (XEvent*)&event);
-}
-
-void sl_focus_window (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->focused_window_index) && index == display->focused_window_index) return;
-
-	uint const modifiers[] = {0, display->numlockmask, LockMask, display->numlockmask | LockMask};
-
-	if (is_valid_window_index(display->focused_window_index)) {
-		sl_window* const focused_window = sl_focused_window(display);
-		for (size_t i = 0; i < 4; ++i)
-			XGrabButton(
-			display->x_display, Button1, modifiers[i], focused_window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None
-			);
-
-		unfocus_window_impl(display, focused_window);
-	}
-
-	display->focused_window_index = index;
-
-	sl_window* const focused_window = sl_focused_window(display);
-	focus_window_impl(display, focused_window, time);
-
+static void unfocus_window_impl (sl_display* restrict this, sl_window* restrict window) {
+	uint const modifiers[] = {0, this->numlockmask, LockMask, this->numlockmask | LockMask};
 	for (size_t i = 0; i < 4; ++i)
-		XUngrabButton(display->x_display, Button1, modifiers[i], focused_window->x_window);
+		XGrabButton(this->x_display, Button1, modifiers[i], window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None);
+
+	warn_log("todo: serial");
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = this->x_display,
+	.window = window->x_window,
+	.message_type = this->atoms[net_wm_state],
+	.format = 32,
+	.data = {.l = {M_net_wm_state_remove, this->atoms[net_wm_state_focused], 0, 0, 0}}};
+
+	XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
 }
 
-static void raise_window_impl (sl_display* display, sl_window* window, M_maybe_unused Time time) {
-	XRaiseWindow(display->x_display, window->x_window);
-}
+static void raise_window_impl (sl_display* restrict this, sl_window* restrict window) { XRaiseWindow(this->x_display, window->x_window); }
 
-void sl_raise_window (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->raised_window_index) && index == display->raised_window_index) return;
-
-	display->raised_window_index = index;
-	sl_window* const raised_window = sl_raised_window(display);
-	raise_window_impl(display, raised_window, time);
-
-	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) {
-		sl_window* const window = (sl_window*)display->unmanaged_windows->data + i;
-
-		raise_window_impl(display, window, time);
-	}
-}
-
-void sl_focus_and_raise_window (sl_display* display, size_t index, Time time) {
-	sl_focus_window(display, index, time);
-	sl_raise_window(display, index, time);
-}
-
-void sl_focus_raised_window (sl_display* display, Time time) {
-	if (is_valid_window_index(display->raised_window_index)) return sl_focus_window(display, display->raised_window_index, time);
-}
-
-void sl_swap_window_with_raised_window (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) return sl_focus_raised_window(display, time);
-
-	if (is_valid_window_index(display->raised_window_index)) {
-		sl_window* const raised_window = sl_raised_window(display);
-		sl_window* const window = sl_window_at(display, index);
-
-		sl_window_swap(window, raised_window);
-
-		size_t saved_index = display->raised_window_index;
-		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index)
-			display->focused_window_index = index;
-		display->raised_window_index = index;
-
-		sl_focus_and_raise_window(display, saved_index, time);
-
+static void delete_window_impl (sl_display* this, sl_window* restrict window, Time time) {
+	if (!window->have_protocols.delete_window) {
+		XKillClient(this->x_display, window->x_window);
 		return;
 	}
 
-	sl_focus_and_raise_window(display, index, time);
+	warn_log("todo: serial");
+	if (time == CurrentTime) warn_log("icccm says that data[1] should never de CurrentTime");
+
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = this->x_display,
+	.window = window->x_window,
+	.message_type = this->atoms[wm_protocols],
+	.format = 32,
+	.data.l[0] = this->atoms[wm_delete_window],
+	.data.l[1] = time};
+
+	XSendEvent(this->x_display, window->x_window, false, 0, (XEvent*)&event);
 }
 
-void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Time time) {
-	warn_log("should this even exist?");
+void sl_cycle_windows_up (sl_display* restrict this, Time time) {
+	sl_window_stack_cycle_up((sl_window_stack*)&this->window_stack);
 
-	sl_window* const unmanaged_window = sl_unmanaged_window_at(display, index);
+	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
-	focus_window_impl(display, unmanaged_window, time);
-	raise_window_impl(display, unmanaged_window, time);
+	if (window) {
+		sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
+		sl_focus_window(this, this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace], time);
+		raise_window_impl(this, window);
+	}
 }
 
-void send_new_dimensions_to_window (sl_display* display, sl_window* window) {
+void sl_cycle_windows_down (sl_display* restrict this, Time time) {
+	sl_window_stack_cycle_down((sl_window_stack*)&this->window_stack);
+
+	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
+
+	if (window) {
+		sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
+		sl_focus_window(this, this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace], time);
+		raise_window_impl(this, window);
+	}
+}
+
+static void map_windows_for_current_workspace (sl_display* restrict this) {
+	if (!sl_window_stack_is_valid_index(sl_window_stack_get_raised_window_index((sl_window_stack*)&this->window_stack))) return;
+
+	for (size_t i = this->window_stack.data[this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace]].next;;
+	     i = this->window_stack.data[i].next) {
+		XMapWindow(this->x_display, this->window_stack.data[i].window.x_window);
+
+		if (i == this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace]) break;
+	}
+}
+
+static void unmap_windows_for_current_workspace (sl_display* restrict this) {
+	if (!sl_window_stack_is_valid_index(sl_window_stack_get_raised_window_index((sl_window_stack*)&this->window_stack))) return;
+
+	for (size_t i = this->window_stack.data[this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace]].next;;
+	     i = this->window_stack.data[i].next) {
+		XUnmapWindow(this->x_display, this->window_stack.data[i].window.x_window);
+
+		if (i == this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace]) break;
+	}
+}
+
+void sl_next_workspace (sl_display* restrict this) {
+	if (this->window_stack.workspace_vector.size == 1) return;
+
+	unmap_windows_for_current_workspace(this);
+	sl_window_stack_cycle_workspace_up((sl_window_stack*)&this->window_stack);
+	map_windows_for_current_workspace(this);
+}
+
+void sl_previous_workspace (sl_display* restrict this) {
+	if (this->window_stack.workspace_vector.size == 1) return;
+
+	unmap_windows_for_current_workspace(this);
+	sl_window_stack_cycle_workspace_down((sl_window_stack*)&this->window_stack);
+	map_windows_for_current_workspace(this);
+}
+
+void sl_push_workspace (sl_display* restrict this) { return sl_window_stack_add_workspace((sl_window_stack*)&this->window_stack); }
+
+void sl_pop_workspace (sl_display* restrict this) {
+	if (this->window_stack.workspace_vector.size <= 1) return;
+
+	if (this->window_stack.current_workspace == this->window_stack.workspace_vector.size - 1) {
+		if (sl_window_stack_is_valid_index(this->window_stack.workspace_vector.indexes[this->window_stack.workspace_vector.size - 2]))
+			for (size_t i = this->window_stack.data[this->window_stack.workspace_vector.indexes[this->window_stack.workspace_vector.size - 2]].next;;
+			     i = this->window_stack.data[i].next) {
+				XMapWindow(this->x_display, this->window_stack.data[i].window.x_window);
+
+				if (i == this->window_stack.workspace_vector.indexes[this->window_stack.workspace_vector.size - 2]) break;
+			}
+	} else if (this->window_stack.current_workspace == this->window_stack.workspace_vector.size - 2) {
+		if (sl_window_stack_is_valid_index(this->window_stack.workspace_vector.indexes[this->window_stack.workspace_vector.size - 1]))
+			for (size_t i = this->window_stack.data[this->window_stack.workspace_vector.indexes[this->window_stack.workspace_vector.size - 1]].next;;
+			     i = this->window_stack.data[i].next) {
+				XMapWindow(this->x_display, this->window_stack.data[i].window.x_window);
+
+				if (i == this->window_stack.workspace_vector.indexes[this->window_stack.workspace_vector.size - 1]) break;
+			}
+	}
+
+	sl_window_stack_remove_workspace((sl_window_stack*)&this->window_stack);
+}
+
+void sl_switch_to_workspace (sl_display* restrict this, workspace_type workspace) {
+	if (workspace == this->window_stack.current_workspace) return;
+	if (workspace >= this->window_stack.workspace_vector.size) return;
+	if (this->window_stack.workspace_vector.size == 1) return;
+
+	unmap_windows_for_current_workspace(this);
+	sl_window_stack_set_current_workspace((sl_window_stack*)&this->window_stack, workspace);
+	map_windows_for_current_workspace(this);
+}
+
+void sl_next_workspace_with_raised_window (sl_display* restrict this) {
+	if (this->window_stack.workspace_vector.size == 1) return;
+
+	size_t index = this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace];
+	size_t focused_window_index = this->window_stack.focused_window_index;
+
+	sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&this->window_stack, index);
+
+	unmap_windows_for_current_workspace(this);
+	sl_window_stack_cycle_workspace_up((sl_window_stack*)&this->window_stack);
+	map_windows_for_current_workspace(this);
+
+	sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&this->window_stack, index);
+
+	if (index == focused_window_index) sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
+
+	raise_window_impl(this, (sl_window*)&this->window_stack.data[index].window);
+}
+
+void sl_previous_workspace_with_raised_window (sl_display* restrict this) {
+	if (this->window_stack.workspace_vector.size == 1) return;
+
+	size_t index = this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace];
+	size_t focused_window_index = this->window_stack.focused_window_index;
+
+	sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&this->window_stack, index);
+
+	unmap_windows_for_current_workspace(this);
+	sl_window_stack_cycle_workspace_down((sl_window_stack*)&this->window_stack);
+	map_windows_for_current_workspace(this);
+
+	sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&this->window_stack, index);
+
+	if (index == focused_window_index) sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
+
+	raise_window_impl(this, (sl_window*)&this->window_stack.data[index].window);
+}
+
+void sl_focus_window (sl_display* restrict this, size_t index, Time time) {
+	sl_window* window = (sl_window*)&this->window_stack.data[index].window;
+	sl_window* focused_window = sl_window_stack_get_focused_window((sl_window_stack*)&this->window_stack);
+
+	if (focused_window == window) return;
+
+	if (focused_window) unfocus_window_impl(this, focused_window);
+
+	sl_window_stack_set_focused_window((sl_window_stack*)&this->window_stack, index);
+
+	focus_window_impl(this, window, time);
+}
+
+void sl_raise_window (sl_display* restrict this, size_t index) {
+	sl_window* window = (sl_window*)&this->window_stack.data[index].window;
+	sl_window* raised_window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
+
+	if (raised_window == window) return;
+
+	sl_window_stack_set_raised_window((sl_window_stack*)&this->window_stack, index);
+
+	raise_window_impl(this, window);
+}
+
+void sl_focus_and_raise_window (sl_display* restrict display, size_t index, Time time) {
+	sl_focus_window(display, index, time);
+	sl_raise_window(display, index);
+}
+
+void sl_focus_raised_window (sl_display* restrict this, Time time) {
+	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
+
+	if (window) return sl_focus_window(this, this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace], time);
+}
+
+static void send_new_dimensions_to_window (sl_display* restrict this, sl_window* restrict window) {
 	/*
 	  Inter-Client Communication Conventions Manual: Chapter 4. Client-to-Window-Manager Communication: Client Responses to Window Manager Actions:
 
@@ -692,7 +503,7 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window) {
 
 	XConfigureEvent configure_event = (XConfigureEvent) {
 	.type = ConfigureNotify,
-	.display = display->x_display,
+	.display = this->x_display,
 	.event = window->x_window,
 	.window = window->x_window,
 	.x = window->dimensions.x,
@@ -701,22 +512,22 @@ void send_new_dimensions_to_window (sl_display* display, sl_window* window) {
 	.height = window->dimensions.height,
 	.override_redirect = false};
 
-	XSendEvent(display->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
+	XSendEvent(this->x_display, window->x_window, false, StructureNotifyMask, (XEvent*)&configure_event);
 }
 
-void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y) {
+void sl_move_window (sl_display* restrict this, sl_window* restrict window, i16 x, i16 y) {
 	if (window->type & window_type_splash_bit) return;
 	if (window->dimensions.x == x && window->dimensions.y == y) return;
 
 	window->dimensions.x = x;
 	window->dimensions.y = y;
 
-	XMoveWindow(display->x_display, window->x_window, window->dimensions.x, window->dimensions.y);
+	XMoveWindow(this->x_display, window->x_window, window->dimensions.x, window->dimensions.y);
 
-	send_new_dimensions_to_window(display, window);
+	send_new_dimensions_to_window(this, window);
 }
 
-void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height) {
+void sl_resize_window (sl_display* restrict this, sl_window* restrict window, u16 width, u16 height) {
 	if (window->type & window_type_splash_bit) return;
 
 	if (window->normal_hints.min_width != 0) {
@@ -748,12 +559,12 @@ void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 he
 	window->dimensions.width = width;
 	window->dimensions.height = height;
 
-	XResizeWindow(display->x_display, window->x_window, window->dimensions.width, window->dimensions.height);
+	XResizeWindow(this->x_display, window->x_window, window->dimensions.width, window->dimensions.height);
 
-	send_new_dimensions_to_window(display, window);
+	send_new_dimensions_to_window(this, window);
 }
 
-void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions) {
+void sl_move_and_resize_window (sl_display* restrict this, sl_window* restrict window, sl_window_dimensions dimensions) {
 	if (window->type & window_type_splash_bit) return;
 	if (window->dimensions.x == dimensions.x && window->dimensions.y == dimensions.y && window->dimensions.width == dimensions.width && window->dimensions.height == dimensions.height)
 		return;
@@ -761,128 +572,89 @@ void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_windo
 	window->dimensions = dimensions;
 
 	XMoveResizeWindow(
-	display->x_display, window->x_window, window->dimensions.x, window->dimensions.y, window->dimensions.width, window->dimensions.height
+	this->x_display, window->x_window, window->dimensions.x, window->dimensions.y, window->dimensions.width, window->dimensions.height
 	);
 
-	send_new_dimensions_to_window(display, window);
+	send_new_dimensions_to_window(this, window);
 }
 
-void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes) {
+void sl_configure_window (sl_display* restrict this, sl_window* restrict window, uint value_mask, XWindowChanges window_changes) {
 	if (value_mask & CWX) window->dimensions.x = window_changes.x;
 	if (value_mask & CWY) window->dimensions.y = window_changes.y;
 	if (value_mask & CWWidth) window->dimensions.width = window_changes.width;
 	if (value_mask & CWHeight) window->dimensions.height = window_changes.height;
 
-	if (value_mask) XConfigureWindow(display->x_display, window->x_window, value_mask, &window_changes);
+	if (value_mask) XConfigureWindow(this->x_display, window->x_window, value_mask, &window_changes);
 }
 
-void sl_window_fullscreen_change_response (sl_display* display, sl_window* window) {
+void sl_window_fullscreen_change_response (sl_display* restrict this, sl_window* restrict window) {
 	if ((window->state & window_state_fullscreen_bit) != 0)
-		sl_move_and_resize_window(display, window, display->dimensions);
+		sl_move_and_resize_window(this, window, this->dimensions);
 	else
-		sl_move_and_resize_window(display, window, window->saved_dimensions);
+		sl_move_and_resize_window(this, window, window->saved_dimensions);
 }
 
-void sl_maximize_raised_window (sl_display* display) {
-	if (!is_valid_window_index(display->raised_window_index)) return;
+void sl_window_maximized_change_response (sl_display* restrict this, sl_window* restrict window) {
+	if ((window->state & window_state_fullscreen_bit) != 0) return;
 
-	sl_window* const raised_window = sl_raised_window(display);
+	if (window->state & window_state_maximized_horz_bit) {
+		if (window->state & window_state_maximized_vert_bit) return sl_move_and_resize_window(this, window, this->dimensions);
 
-	if (raised_window->maximized) {
-		raised_window->maximized = false;
-
-		if (raised_window->state & window_state_fullscreen_bit) return; // do nothing
-
-		return sl_move_and_resize_window(display, raised_window, raised_window->saved_dimensions);
+		return sl_move_and_resize_window(
+		this, window,
+		(sl_window_dimensions
+		) {.x = this->dimensions.x, .y = window->saved_dimensions.y, .width = this->dimensions.width, .height = window->saved_dimensions.height}
+		);
 	}
 
-	raised_window->maximized = true;
-	if (raised_window->state & window_state_fullscreen_bit) return; // do nothing
+	if (window->state & window_state_maximized_vert_bit)
+		return sl_move_and_resize_window(
+		this, window,
+		(sl_window_dimensions
+		) {.x = window->saved_dimensions.x, .y = this->dimensions.y, .width = window->saved_dimensions.width, .height = this->dimensions.height}
+		);
 
-	return sl_move_and_resize_window(display, raised_window, display->dimensions);
+	sl_move_and_resize_window(this, window, window->saved_dimensions);
 }
 
-void sl_expand_raised_window_to_max (sl_display* display) {
-	if (!is_valid_window_index(display->raised_window_index)) return;
+void sl_maximize_raised_window (sl_display* restrict this) {
+	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
-	sl_window* const raised_window = sl_raised_window(display);
+	if (!window) return;
 
-	if (raised_window->state & window_state_fullscreen_bit) return; // do nothing
-
-	raised_window->saved_dimensions = display->dimensions;
-
-	return sl_move_and_resize_window(display, raised_window, display->dimensions);
+	sl_window_toggle_maximized(window, this);
+	sl_window_maximized_change_response(this, window);
 }
 
-void sl_close_raised_window (sl_display* display, Time time) {
-	if (!is_valid_window_index(display->raised_window_index)) return;
+void sl_expand_raised_window_to_max (sl_display* restrict this) {
+	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
-	sl_delete_raised_window(display, time);
+	if (!window) return;
+
+	if (window->state & window_state_fullscreen_bit) return; // do nothing
+
+	window->saved_dimensions = this->dimensions;
+
+	return sl_move_and_resize_window(this, window, this->dimensions);
 }
 
-void sl_delete_all_windows (sl_display* display, Time time) {
-	display->focused_window_index = M_invalid_window_index;
-	display->raised_window_index = M_invalid_window_index;
+void sl_close_raised_window (sl_display* restrict this, Time time) { return sl_delete_raised_window(this, time); }
 
-	for (size_t i = 0; i < display->windows->size; ++i) {
-		sl_window* const window = sl_window_at(display, i);
-		if (window->started) delete_window_impl(display, window, time);
-	}
+void sl_delete_window (sl_display* restrict this, size_t index, Time time) {
+	sl_window* window = (sl_window*)&this->window_stack.data[index].window;
 
-	sl_vector_resize(display->windows, 0);
-
-	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) {
-		sl_window* const unmanaged_window = sl_unmanaged_window_at(display, i);
-		if (unmanaged_window->started) delete_window_impl(display, unmanaged_window, time);
-	}
-
-	sl_vector_resize(display->unmanaged_windows, 0);
+	if (window->started) delete_window_impl(this, window, time);
 }
 
-void sl_delete_window (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) {
-		delete_window_impl(display, sl_window_at(display, index), time);
-		sl_raised_window_erase(display, time);
-		return;
-	}
+void sl_delete_raised_window (sl_display* restrict this, Time time) {
+	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
-	sl_window* const window = sl_window_at(display, index);
+	if (!window) return;
 
-	if (window->started) delete_window_impl(display, window, time);
-
-	sl_window_erase(display, index, time);
+	delete_window_impl(this, window, time);
 }
 
-void sl_delete_raised_window (sl_display* display, Time time) {
-	if (!is_valid_window_index(display->raised_window_index)) return;
-
-	delete_window_impl(display, sl_raised_window(display), time);
-
-	sl_raised_window_erase(display, time);
-}
-
-void sl_window_erase (sl_display* display, size_t index, Time time) {
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == index)
-		display->focused_window_index = M_invalid_window_index;
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == index) return sl_raised_window_erase(display, time);
-
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > index) --display->raised_window_index;
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > index) --display->focused_window_index;
-
-	sl_window_destroy(sl_window_at(display, index));
-	sl_vector_erase(display->windows, index);
-}
-
-void sl_raised_window_erase (sl_display* display, Time time) {
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == display->raised_window_index)
-		display->focused_window_index = M_invalid_window_index;
-	size_t const old_raised_window_index = display->raised_window_index;
-	sl_cycle_windows_down(display, time);
-
-	if (is_valid_window_index(display->raised_window_index) && display->raised_window_index > old_raised_window_index) --display->raised_window_index;
-	if (is_valid_window_index(display->focused_window_index) && display->focused_window_index > old_raised_window_index)
-		--display->focused_window_index;
-
-	sl_window_destroy(sl_window_at(display, old_raised_window_index));
-	sl_vector_erase(display->windows, old_raised_window_index);
+void sl_delete_all_windows (sl_display* restrict this, Time time) {
+	for (size_t i = 0; i < this->window_stack.size; ++i)
+		if (!this->window_stack.data[i].flagged_for_deletion) delete_window_impl(this, (sl_window*)&this->window_stack.data[i].window, time);
 }

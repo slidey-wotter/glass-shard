@@ -63,6 +63,7 @@ int main () {
 	sl_display* display;
 
 	XSetErrorHandler(xerror_handler);
+
 	XSetIOErrorHandler(xio_error_handler);
 
 #ifdef D_gcc
@@ -142,10 +143,14 @@ int main () {
 			break;
 		}
 
-		if (window_manager()->logout && display->windows->size == 0 && display->unmanaged_windows->size == 0) {
+		if (window_manager()->logout) {
+			for (size_t i = 0; i < display->window_stack.size; ++i) {
+				if (!display->window_stack.data[i].flagged_for_deletion) goto out;
+			}
 			warn_log("Meta: Successfuly waited for all window to delete themselves\nexiting...\n");
 			sl_display_delete(display);
 			return 0;
 		}
+	out:;
 	}
 }

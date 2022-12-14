@@ -32,10 +32,8 @@ struct sl_sized_string_mutable {
 typedef struct sl_window_mutable {
 	Window x_window;
 	bool started;
-	bool mapped, maximized;
 	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
-	workspace_type workspace;
 
 	struct sl_sized_string_mutable name;
 	struct sl_sized_string_mutable icon_name;

@@ -80,11 +80,9 @@ struct sl_sized_string {
 
 typedef struct sl_window {
 	Window const x_window;
-	bool const started;
-	bool mapped, maximized;
+	bool started;
 	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
-	workspace_type workspace;
 
 	struct sl_sized_string const name;
 	struct sl_sized_string const icon_name;
@@ -128,45 +126,47 @@ typedef struct sl_window {
 	u16 const allowed_actions;
 } sl_window;
 
-extern void sl_window_start (sl_window* window);
-
 extern void sl_window_destroy (sl_window* window);
-
-extern void sl_window_swap (sl_window* lhs, sl_window* rhs);
 
 typedef struct sl_display sl_display;
 
-extern void sl_set_window_name (sl_window* window, sl_display* display);
-extern void sl_set_window_icon_name (sl_window* window, sl_display* display);
-extern void sl_set_window_normal_hints (sl_window* window, sl_display* display);
-extern void sl_set_window_hints (sl_window* window, sl_display* display);
-extern void sl_set_window_class (sl_window* window, sl_display* display);
-extern void sl_set_window_transient_for (sl_window* window, sl_display* display);
-extern void sl_set_window_protocols (sl_window* window, sl_display* display);
-extern void sl_set_window_colormap_windows (sl_window* window, sl_display* display);
-extern void sl_set_window_client_machine (sl_window* window, sl_display* display);
+extern void sl_set_window_name (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_icon_name (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_normal_hints (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_hints (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_class (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_transient_for (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_protocols (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_colormap_windows (sl_window* restrict, sl_display* restrict);
+extern void sl_set_window_client_machine (sl_window* restrict, sl_display* restrict);
 
-extern void sl_window_set_net_wm_name (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_visible_name (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_icon_name (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_visible_icon_name (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_desktop (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_window_type (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_state (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_allowed_actions (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_strut (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_strut_partial (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_icon_geometry (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_icon (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_pid (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_handled_icons (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_user_time (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_user_time_window (sl_window* window, sl_display* display);
-extern void sl_window_set_net_frame_extents (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_opaque_region (sl_window* window, sl_display* display);
-extern void sl_window_set_net_wm_bypass_compositor (sl_window* window, sl_display* display);
+extern void sl_window_set_net_wm_name (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_visible_name (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_icon_name (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_visible_icon_name (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_desktop (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_window_type (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_state (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_allowed_actions (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_strut (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_strut_partial (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_icon_geometry (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_icon (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_pid (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_handled_icons (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_user_time (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_user_time_window (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_frame_extents (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_opaque_region (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_net_wm_bypass_compositor (sl_window* restrict, sl_display* restrict);
 
-extern void sl_window_set_all_properties (sl_window* window, sl_display* display);
+extern void sl_window_set_all_properties (sl_window* restrict, sl_display* restrict);
 
-extern void sl_window_set_fullscreen (sl_window* window, sl_display* display, bool fullscreen);
-extern void sl_window_toggle_fullscreen (sl_window* window, sl_display* display);
+extern void sl_window_set_fullscreen (sl_window* restrict, sl_display* restrict, bool);
+extern void sl_window_toggle_fullscreen (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_horizontally_maximized (sl_window* restrict, sl_display* restrict, bool);
+extern void sl_window_toggle_horizontally_maximized (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_vertically_maximized (sl_window* restrict, sl_display* restrict, bool);
+extern void sl_window_toggle_vertically_maximized (sl_window* restrict, sl_display* restrict);
+extern void sl_window_set_maximized (sl_window* restrict, sl_display* restrict, bool);
+extern void sl_window_toggle_maximized (sl_window* restrict, sl_display* restrict);

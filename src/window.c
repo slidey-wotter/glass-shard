@@ -27,21 +27,23 @@
 #include "display.h"
 #include "window-mutable.h"
 
-void sl_window_start (sl_window* window) { ((sl_window_mutable*)window)->started = true; }
+#ifdef D_window_log
+#	define window_log(M_message)         warn_log(M_message)
+#	define window_log_va(M_message, ...) warn_log_va(M_message, __VA_ARGS__)
+#else
+#	define window_log(M_message)
+#	define window_log_va(M_message, ...)
+#endif
 
 void sl_window_destroy (sl_window* window) {
+	window_log_va("[%lu] window destroy", window->x_window);
+
 	if (window->name.data) free(((sl_window_mutable*)window)->name.data);
 	if (window->icon_name.data) free(((sl_window_mutable*)window)->icon_name.data);
 	if (window->net_wm_name.data) free(((sl_window_mutable*)window)->net_wm_name.data);
 	if (window->net_wm_visible_name.data) free(((sl_window_mutable*)window)->net_wm_visible_name.data);
 	if (window->net_wm_icon_name.data) free(((sl_window_mutable*)window)->net_wm_icon_name.data);
 	if (window->net_wm_visible_icon_name.data) free(((sl_window_mutable*)window)->net_wm_visible_icon_name.data);
-}
-
-void sl_window_swap (sl_window* lhs, sl_window* rhs) {
-	sl_window_mutable temp = *(sl_window_mutable*)lhs;
-	*(sl_window_mutable*)lhs = *(sl_window_mutable*)rhs;
-	*(sl_window_mutable*)rhs = temp;
 }
 
 /*
@@ -93,7 +95,7 @@ static void window_set_text_property (sl_window* window, sl_display* display, At
 
 	if (sized_string->data) free(sized_string->data);
 
-	warn_log("ignoring encoding and format");
+	window_log("ignoring encoding and format");
 	sized_string->size = text_property.nitems;
 	sized_string->data = malloc(sizeof(uchar) * sized_string->size);
 	memcpy(sized_string->data, text_property.value, sized_string->size);
@@ -125,9 +127,11 @@ void sl_set_window_name (sl_window* window, sl_display* display) {
 	  Even window managers that support headline bars will place some limit on the
 	  length of the WM_NAME string that can be visible; brevity here will pay dividends.
 	*/
+	window_log_va("[%lu] set window name", window->x_window);
+
 	window_set_text_property(window, display, XA_WM_NAME, (struct sl_sized_string_mutable*)&window->name);
 
-	warn_log_va("[%lu] name: \"%.*s\"", window->x_window, (int)window->name.size, window->name.data);
+	window_log_va("[%lu] name: \"%.*s\"", window->x_window, (int)window->name.size, window->name.data);
 }
 
 void sl_set_window_icon_name (sl_window* window, sl_display* display) {
@@ -141,9 +145,11 @@ void sl_set_window_icon_name (sl_window* window, sl_display* display) {
 	  Clients should not attempt to display this string in their icon pixmaps or windows;
 	  rather, they should rely on the window manager to do so.
 	*/
+	window_log_va("[%lu] set window icon name", window->x_window);
+
 	window_set_text_property(window, display, XA_WM_ICON_NAME, (struct sl_sized_string_mutable*)&window->icon_name);
 
-	warn_log_va("[%lu] icon_name: \"%.*s\"", window->x_window, (int)window->icon_name.size, window->icon_name.data);
+	window_log_va("[%lu] icon_name: \"%.*s\"", window->x_window, (int)window->icon_name.size, window->icon_name.data);
 }
 
 void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -231,13 +237,14 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 	  nothing should be subtracted from the window size. (The minimum size is not to be
 	  used in place of the base size for this purpose.)
 	*/
+	window_log_va("[%lu] set window normal hints", window->x_window);
 
 	XSizeHints size_hints;
 	long user_supplied;
 
 	XGetWMNormalHints(display->x_display, window->x_window, &size_hints, &user_supplied);
 
-	warn_log("ignoring user supplied");
+	window_log("ignoring user supplied");
 
 	((sl_window_mutable*)window)->normal_hints = (struct window_normal_hints) {
 	0, 0, 0, 0, 0, 0, {0, 0},
@@ -287,7 +294,7 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 		((sl_window_mutable*)window)->normal_hints.gravity = size_hints.win_gravity;
 	}
 
-	warn_log_va(
+	window_log_va(
 	"[%lu] window normal hints: min_width %u, min_height %u, max_width %u, max_height %u, width_inc %u, height_inc %u, min_aspect %u/%u, max_aspect "
 	"%u/%u, base_width %u, base_height %u, gravity %u",
 	window->x_window, window->normal_hints.min_width, window->normal_hints.min_height, window->normal_hints.max_width, window->normal_hints.max_height,
@@ -297,7 +304,7 @@ void sl_set_window_normal_hints (M_maybe_unused sl_window* window, M_maybe_unuse
 	);
 }
 
-void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
+void sl_set_window_hints (sl_window* window, sl_display* display) {
 	/*
 	  The WM_HINTS property (whose type is WM_HINTS) is used to communicate to the
 	  window manager. It conveys the information the window manager needs other than
@@ -436,6 +443,7 @@ void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 	    is newly urgent, such as by flashing its icon (if the window is iconic)
 	    or by raising it to the top of the stack.
 	*/
+	window_log_va("[%lu] set window hints", window->x_window);
 
 	((sl_window_mutable*)window)->hints = (struct window_hints) {.input = true, .state = NormalState, .urgent = false};
 
@@ -443,7 +451,7 @@ void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 
 	if (!hints) return;
 
-	warn_log("ignoring some of the window's hints");
+	window_log("ignoring some of the window's hints");
 
 	if (hints->flags & InputHint) ((sl_window_mutable*)window)->hints.input = hints->input;
 	if (hints->flags & StateHint) ((sl_window_mutable*)window)->hints.state = hints->initial_state;
@@ -451,7 +459,7 @@ void sl_set_window_hints (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 
 	XFree(hints);
 
-	warn_log_va(
+	window_log_va(
 	"[%lu] window hints: input %s, state %s, urgent %s", window->x_window, window->hints.input ? "true" : "false",
 	window->hints.state == NormalState ? "normal" :
 	window->hints.state == IconicState ? "iconic" :
@@ -498,8 +506,9 @@ void sl_set_window_class (M_maybe_unused sl_window* window, M_maybe_unused sl_di
 	  conventions that STRING properties are null-separated. This inconsistency is
 	  necessary for backwards compatibility.
 	*/
+	window_log_va("[%lu] set window class", window->x_window);
 
-	warn_log("todo: wm_window_class");
+	window_log("todo: wm_window_class");
 }
 
 void sl_set_window_transient_for (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -520,8 +529,9 @@ void sl_set_window_transient_for (M_maybe_unused sl_window* window, M_maybe_unus
 	  processing input (for example, when implementing pop-up menus), use override-
 	  redirect and grab the pointer while the window is mapped.
 	*/
+	window_log_va("[%lu] set window transient for", window->x_window);
 
-	warn_log("todo: wm_transient_for");
+	window_log("todo: wm_transient_for");
 }
 
 void sl_set_window_protocols (sl_window* window, sl_display* display) {
@@ -549,6 +559,7 @@ void sl_set_window_protocols (sl_window* window, sl_display* display) {
 
 	  It is expected that this table will grow over time.
 	*/
+	window_log_va("[%lu] set window protocols", window->x_window);
 
 	Atom* protocols = NULL;
 	int n = 0;
@@ -571,7 +582,7 @@ void sl_set_window_protocols (sl_window* window, sl_display* display) {
 
 	XFree(protocols);
 
-	warn_log_va(
+	window_log_va(
 	"[%lu] window protocols: %s", window->x_window,
 	window->have_protocols.take_focus    ? (window->have_protocols.delete_window ? "take focus and delete window" : "take focus") :
 	window->have_protocols.delete_window ? "delete window" :
@@ -588,8 +599,9 @@ void sl_set_window_colormap_windows (M_maybe_unused sl_window* window, M_maybe_u
 	  always (implicitly or explicitly) on the watch list. For the details of this mechanism,
 	  see Colormaps
 	*/
+	window_log_va("[%lu] set window colormap windows", window->x_window);
 
-	warn_log("todo: wm_window_colormap_windows");
+	window_log("todo: wm_window_colormap_windows");
 }
 
 void sl_set_window_client_machine (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -598,8 +610,9 @@ void sl_set_window_client_machine (M_maybe_unused sl_window* window, M_maybe_unu
 	  types) to a string that forms the name of the machine running the client as seen
 	  from the machine running the server.
 	*/
+	window_log_va("[%lu] set window client machine", window->x_window);
 
-	warn_log("todo: wm_client_machine");
+	window_log("todo: wm_client_machine");
 }
 
 /*
@@ -615,7 +628,7 @@ window_set_net_utf8_string_property (sl_window* window, sl_display* display, siz
 	uchar* prop = NULL;
 
 	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 1, false, display->atoms[type_utf8_string], &actual_type, &actual_format, &items_size, &bytes_after, &prop) != Success) {
-		warn_log("XGetWindowProperty does not return Success");
+		window_log("XGetWindowProperty does not return Success");
 		return;
 	}
 
@@ -634,7 +647,7 @@ window_set_net_utf8_string_property (sl_window* window, sl_display* display, siz
 	*/
 
 	if (actual_type == None) {
-		warn_log("empty property");
+		window_log("empty property");
 		XFree(prop);
 		return;
 	}
@@ -648,7 +661,7 @@ window_set_net_utf8_string_property (sl_window* window, sl_display* display, siz
 	*/
 
 	if (actual_type != display->atoms[type_utf8_string]) {
-		warn_log("atom type mismatch");
+		window_log("atom type mismatch");
 		XFree(prop);
 		return;
 	}
@@ -690,10 +703,11 @@ void sl_window_set_net_wm_name (sl_window* window, sl_display* display) {
 
 	  The Client SHOULD set this to the title of the window in UTF-8 encoding. If set, the Window Manager should use this in preference to WM_NAME.
 	*/
+	window_log_va("[%lu] set window net wm name", window->x_window);
 
 	window_set_net_utf8_string_property(window, display, net_wm_name, (struct sl_sized_string_mutable*)&window->net_wm_name);
 
-	warn_log_va("[%lu] net_wm_name \"%.*s\"", window->x_window, (int)window->net_wm_name.size, window->net_wm_name.data);
+	window_log_va("[%lu] net_wm_name \"%.*s\"", window->x_window, (int)window->net_wm_name.size, window->net_wm_name.data);
 }
 
 void sl_window_set_net_wm_visible_name (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -706,10 +720,11 @@ void sl_window_set_net_wm_visible_name (M_maybe_unused sl_window* window, M_mayb
 	  xterm <2>, ... is shown, but _NET_WM_NAME / WM_NAME is still xterm for each window) thereby allowing Pagers to display the same title as the
 	  Window Manager.
 	*/
+	window_log_va("[%lu] set window net wm visible name", window->x_window);
 
 	window_set_net_utf8_string_property(window, display, net_wm_visible_name, (struct sl_sized_string_mutable*)&window->net_wm_visible_name);
 
-	warn_log_va("[%lu] net_wm_visible_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_name.size, window->net_wm_visible_name.data);
+	window_log_va("[%lu] net_wm_visible_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_name.size, window->net_wm_visible_name.data);
 }
 
 void sl_window_set_net_wm_icon_name (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -719,10 +734,11 @@ void sl_window_set_net_wm_icon_name (M_maybe_unused sl_window* window, M_maybe_u
 	  The Client SHOULD set this to the title of the icon for this window in UTF-8 encoding. If set, the Window Manager should use this in preference to
 	  WM_ICON_NAME.
 	*/
+	window_log_va("[%lu] set window net wm icon name", window->x_window);
 
 	window_set_net_utf8_string_property(window, display, net_wm_icon_name, (struct sl_sized_string_mutable*)&window->net_wm_icon_name);
 
-	warn_log_va("[%lu] net_wm_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_icon_name.size, window->net_wm_icon_name.data);
+	window_log_va("[%lu] net_wm_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_icon_name.size, window->net_wm_icon_name.data);
 }
 
 void sl_window_set_net_wm_visible_icon_name (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -732,10 +748,11 @@ void sl_window_set_net_wm_visible_icon_name (M_maybe_unused sl_window* window, M
 	  If the Window Manager displays an icon name other than _NET_WM_ICON_NAME the Window Manager MUST set this to the title displayed in UTF-8
 	  encoding.
 	*/
+	window_log_va("[%lu] set window net wm visible icon name", window->x_window);
 
 	window_set_net_utf8_string_property(window, display, net_wm_visible_icon_name, (struct sl_sized_string_mutable*)&window->net_wm_visible_icon_name);
 
-	warn_log_va(
+	window_log_va(
 	"[%lu] net_wm_visible_icon_name \"%.*s\"", window->x_window, (int)window->net_wm_visible_icon_name.size, window->net_wm_visible_icon_name.data
 	);
 }
@@ -768,8 +785,9 @@ void sl_window_set_net_wm_desktop (M_maybe_unused sl_window* window, M_maybe_unu
 	  See the section called “Source indication in requests” for details on the source indication. The Window Manager MUST keep this property updated on
 	  all windows.
 	*/
+	window_log_va("[%lu] set window net wm desktop", window->x_window);
 
-	warn_log("todo: _net_wm_desktop");
+	window_log("todo: _net_wm_desktop");
 }
 
 static int get_net_atom_list (sl_window* window, sl_display* display, size_t atom_index, uchar** prop, ulong* items_size) {
@@ -778,7 +796,7 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	ulong bytes_after;
 
 	if (XGetWindowProperty(display->x_display, window->x_window, display->atoms[atom_index], 0, 1, false, XA_ATOM, &actual_type, &actual_format, items_size, &bytes_after, prop) != Success) {
-		warn_log("XGetWindowProperty does not return Success");
+		window_log("XGetWindowProperty does not return Success");
 		return -1;
 	}
 
@@ -797,7 +815,7 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	*/
 
 	if (actual_type == None) {
-		warn_log("empty property");
+		window_log("empty property");
 		XFree(*prop);
 		return -1;
 	}
@@ -811,7 +829,7 @@ static int get_net_atom_list (sl_window* window, sl_display* display, size_t ato
 	*/
 
 	if (actual_type != XA_ATOM) {
-		warn_log("atom type mismatch");
+		window_log("atom type mismatch");
 		XFree(*prop);
 		return -1;
 	}
@@ -915,6 +933,7 @@ void sl_window_set_net_wm_window_type (M_maybe_unused sl_window* window, M_maybe
 	  _NET_WM_WINDOW_TYPE nor WM_TRANSIENT_FOR set MUST be taken as this type. Override-redirect windows without _NET_WM_WINDOW_TYPE, must be taken as
 	  this type, whether or not they have WM_TRANSIENT_FOR set.
 	*/
+	window_log_va("[%lu] set window net wm window type", window->x_window);
 
 	Atom* prop = NULL;
 	ulong items_size;
@@ -959,7 +978,7 @@ void sl_window_set_net_wm_window_type (M_maybe_unused sl_window* window, M_maybe
 	if (window->type & window_type_dnd_bit) strcat(buffer, "dnd ");
 	if (window->type & window_type_normal_bit) strcat(buffer, "normal ");
 
-	warn_log_va("[%lu] window type: %s", window->x_window, buffer);
+	window_log_va("[%lu] window type: %s", window->x_window, buffer);
 }
 
 void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1066,6 +1085,7 @@ void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unuse
 
 	  See also the implementation notes on urgency and fixed size windows.
 	*/
+	window_log_va("[%lu] set window net wm state", window->x_window);
 
 	Atom* prop = NULL;
 	ulong items_size;
@@ -1108,7 +1128,7 @@ void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unuse
 	if (window->state & window_state_demands_attention_bit) strcat(buffer, "demands_attention ");
 	if (window->state & window_state_focused_bit) strcat(buffer, "focused ");
 
-	warn_log_va("[%lu] window state: %s", window->x_window, buffer);
+	window_log_va("[%lu] window state: %s", window->x_window, buffer);
 }
 
 void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1173,6 +1193,7 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	  _NET_WM_ACTION_BELOW indicates that the window may placed in the "below" layer of windows (i.e. will respond to _NET_WM_STATE_BELOW changes; see
 	  also the section called “Stacking order” for details)).
 	*/
+	window_log_va("[%lu] set window net wm allowed actions", window->x_window);
 
 	Atom* prop = NULL;
 	ulong items_size;
@@ -1213,7 +1234,7 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	if (window->allowed_actions & allowed_action_above_bit) strcat(buffer, "above ");
 	if (window->allowed_actions & allowed_action_below_bit) strcat(buffer, "below ");
 
-	warn_log_va("[%lu] allowed actions: %s", window->x_window, buffer);
+	window_log_va("[%lu] allowed actions: %s", window->x_window, buffer);
 }
 
 void sl_window_set_net_wm_strut (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1224,8 +1245,9 @@ void sl_window_set_net_wm_strut (M_maybe_unused sl_window* window, M_maybe_unuse
 	  logical screen. _NET_WM_STRUT_PARTIAL was introduced later than _NET_WM_STRUT, however, so clients MAY set this property in addition to
 	  _NET_WM_STRUT_PARTIAL to ensure backward compatibility with Window Managers supporting older versions of the Specification.
 	*/
+	window_log_va("[%lu] set window net wm strut", window->x_window);
 
-	warn_log("todo: _net_wm_strut");
+	window_log("todo: _net_wm_strut");
 }
 
 void sl_window_set_net_wm_strut_partial (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1263,8 +1285,9 @@ void sl_window_set_net_wm_strut_partial (M_maybe_unused sl_window* window, M_may
 	  Notes: An auto-hide panel SHOULD set the strut to be its minimum, hidden size. A "corner" panel that does not extend for the full length of a
 	  screen border SHOULD only set one strut.
 	*/
+	window_log_va("[%lu] set window net wm strut partial", window->x_window);
 
-	warn_log("todo: _net_wm_strut_partial");
+	window_log("todo: _net_wm_strut_partial");
 }
 
 void sl_window_set_net_wm_icon_geometry (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1276,8 +1299,9 @@ void sl_window_set_net_wm_icon_geometry (M_maybe_unused sl_window* window, M_may
 
 	  Rationale: This makes it possible for a Window Manager to display a nice animation like morphing the window into its icon.
 	*/
+	window_log_va("[%lu] set window net wm icon geometry", window->x_window);
 
-	warn_log("todo: _net_wm_icon_geometry");
+	window_log("todo: _net_wm_icon_geometry");
 }
 
 void sl_window_set_net_wm_icon (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1290,8 +1314,9 @@ void sl_window_set_net_wm_icon (M_maybe_unused sl_window* window, M_maybe_unused
 	  This is an array of 32bit packed CARDINAL ARGB with high byte being A, low byte being B. The first two cardinals are width, height. Data is in
 	  rows, left to right and top to bottom.
 	*/
+	window_log_va("[%lu] set window net wm icon", window->x_window);
 
-	warn_log("todo: _net_wm_icon");
+	window_log("todo: _net_wm_icon");
 }
 
 void sl_window_set_net_wm_pid (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1307,8 +1332,9 @@ void sl_window_set_net_wm_pid (M_maybe_unused sl_window* window, M_maybe_unused 
 
 	  See also the implementation notes on killing hung processes.
 	*/
+	window_log_va("[%lu] set window net wm pid", window->x_window);
 
-	warn_log("todo: _net_wm_pid");
+	window_log("todo: _net_wm_pid");
 }
 
 void sl_window_set_net_wm_handled_icons (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1318,8 +1344,9 @@ void sl_window_set_net_wm_handled_icons (M_maybe_unused sl_window* window, M_may
 	  This property can be set by a Pager on one of its own toplevel windows to indicate that the Window Manager need not provide icons for iconified
 	  windows, for example if it is a taskbar and provides buttons for iconified windows.
 	*/
+	window_log_va("[%lu] set window net wm handled icons", window->x_window);
 
-	warn_log("todo: _net_wm_handled_icons");
+	window_log("todo: _net_wm_handled_icons");
 }
 
 void sl_window_set_net_wm_user_time (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1343,8 +1370,9 @@ void sl_window_set_net_wm_user_time (M_maybe_unused sl_window* window, M_maybe_u
 	  Rationale: This property allows a Window Manager to alter the focus, stacking, and/or placement behavior of windows when they are mapped depending
 	  on whether the new window was created by a user action or is a "pop-up" window activated by a timer or some other event.
 	*/
+	window_log_va("[%lu] set window net wm user time", window->x_window);
 
-	warn_log("todo: _net_wm_user_time");
+	window_log("todo: _net_wm_user_time");
 }
 
 void sl_window_set_net_wm_user_time_window (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1357,8 +1385,9 @@ void sl_window_set_net_wm_user_time_window (M_maybe_unused sl_window* window, M_
 	  Rationale: Storing the frequently changing _NET_WM_USER_TIME property on the toplevel window itself causes every application that is interested in
 	  any of the properties of that window to be woken up on every keypress, which is particularly bad for laptops running on battery power.
 	*/
+	window_log_va("[%lu] set window net wm user time window", window->x_window);
 
-	warn_log("todo: _net_wm_user_time_window");
+	window_log("todo: _net_wm_user_time_window");
 }
 
 void sl_window_set_net_frame_extents (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1368,8 +1397,9 @@ void sl_window_set_net_frame_extents (M_maybe_unused sl_window* window, M_maybe_
 	  The Window Manager MUST set _NET_FRAME_EXTENTS to the extents of the window's frame. left, right, top and bottom are widths of the respective
 	  borders added by the Window Manager.
 	*/
+	window_log_va("[%lu] set window net frame extents", window->x_window);
 
-	warn_log("todo: _net_frame_extents");
+	window_log("todo: _net_frame_extents");
 }
 
 void sl_window_set_net_wm_opaque_region (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1385,8 +1415,9 @@ void sl_window_set_net_wm_opaque_region (M_maybe_unused sl_window* window, M_may
 
 	  Rationale: This gives the compositing manager more room for optimizations. For example, it can avoid drawing occluded portions behind the window.
 	*/
+	window_log_va("[%lu] set window net wm opaque region", window->x_window);
 
-	warn_log("todo: _net_wm_opaque_region");
+	window_log("todo: _net_wm_opaque_region");
 }
 
 void sl_window_set_net_wm_bypass_compositor (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -1402,11 +1433,14 @@ void sl_window_set_net_wm_bypass_compositor (M_maybe_unused sl_window* window, M
 	  Rationale: Some applications like fullscreen games might want run without the overhead of being redirected offscreen (to avoid extra copies) and
 	  thus perform better. An application which creates pop-up windows might always want to run composited to avoid exposes.
 	*/
+	window_log_va("[%lu] set window net wm bypass compositor", window->x_window);
 
-	warn_log("todo: _net_wm_bypass_compositor");
+	window_log("todo: _net_wm_bypass_compositor");
 }
 
 void sl_window_set_all_properties (sl_window* window, sl_display* display) {
+	window_log_va("[%lu] window set all properties", window->x_window);
+
 	sl_set_window_name(window, display);
 	sl_set_window_icon_name(window, display);
 	sl_set_window_normal_hints(window, display);
@@ -1525,4 +1559,46 @@ void sl_window_set_fullscreen (sl_window* window, sl_display* display, bool full
 
 void sl_window_toggle_fullscreen (sl_window* window, sl_display* display) {
 	return sl_window_set_fullscreen(window, display, !(window->state & window_state_fullscreen_bit));
+}
+
+void sl_window_set_horizontally_maximized (sl_window* window, sl_display* display, bool maximized) {
+	if (maximized)
+		((sl_window_mutable*)window)->state |= window_state_maximized_horz_bit;
+	else
+		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_horz_bit;
+
+	window_state_change(window, display);
+}
+
+void sl_window_toggle_horizontally_maximized (sl_window* window, sl_display* display) {
+	return sl_window_set_horizontally_maximized(window, display, !(window->state & window_state_maximized_horz_bit));
+}
+
+void sl_window_set_vertically_maximized (sl_window* window, sl_display* display, bool maximized) {
+	if (maximized)
+		((sl_window_mutable*)window)->state |= window_state_maximized_vert_bit;
+	else
+		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_vert_bit;
+
+	window_state_change(window, display);
+}
+
+void sl_window_toggle_vertically_maximized (sl_window* window, sl_display* display) {
+	return sl_window_set_horizontally_maximized(window, display, !(window->state & window_state_maximized_vert_bit));
+}
+
+void sl_window_set_maximized (sl_window* window, sl_display* display, bool maximized) {
+	if (maximized) {
+		((sl_window_mutable*)window)->state |= window_state_maximized_horz_bit;
+		((sl_window_mutable*)window)->state |= window_state_maximized_vert_bit;
+	} else {
+		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_horz_bit;
+		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_vert_bit;
+	}
+
+	window_state_change(window, display);
+}
+
+void sl_window_toggle_maximized (sl_window* window, sl_display* display) {
+	return sl_window_set_maximized(window, display, !(window->state & (window_state_maximized_horz_bit | window_state_maximized_vert_bit)));
 }

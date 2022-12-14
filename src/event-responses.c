@@ -40,23 +40,24 @@
 #define parse_mask(m)      (m & ~(display->numlockmask | LockMask))
 #define parse_mask_long(m) (m & ~(display->numlockmask | LockMask) & (ShiftMask | ControlMask | Mod1Mask | Mod2Mask | Mod3Mask | Mod4Mask | Mod5Mask))
 
-#define window_handle_start \
-	for (size_t i = 0; i < display->windows->size; ++i) { \
-		sl_window* const window = sl_window_at(display, i); \
+#define cycle_windows_for_current_workspace_start \
+	if (sl_window_stack_is_valid_index(sl_window_stack_get_raised_window_index((sl_window_stack*)&display->window_stack))) \
+		for (size_t i = display->window_stack.data[display->window_stack.workspace_vector.indexes[display->window_stack.current_workspace]].next;; \
+		     i = display->window_stack.data[i].next) { \
+			sl_window* window = (sl_window*)&display->window_stack.data[i].window; \
+			if (window->x_window == event->window)
+#define cycle_windows_for_current_workspace_end \
+	if (i == display->window_stack.workspace_vector.indexes[display->window_stack.current_workspace]) break; \
+	}
+
+#define cycle_all_windows_start \
+	for (size_t i = 0; i < display->window_stack.size; ++i) { \
+		if (display->window_stack.data[i].flagged_for_deletion) continue; \
+		sl_window* window = (sl_window*)&display->window_stack.data[i].window; \
 		if (window->x_window == event->window)
+#define cycle_all_windows_end }
 
-#define window_handle_end }
-
-#define unmanaged_window_handle_start \
-	for (size_t i = 0; i < display->unmanaged_windows->size; ++i) { \
-		sl_window* const unmanaged_windows = sl_window_at(display, i); \
-		if (unmanaged_windows->x_window == event->window)
-
-#define unmanaged_window_handle_end }
-
-static void button_press_or_release (sl_display* display, XButtonPressedEvent* event) {
-	display->user_input_since_last_workspace_change = true;
-
+static void button_press_or_release (sl_display* display, XButtonEvent* event) {
 	if (event->window == display->root) {
 		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask))
 			sl_focus_raised_window(display, event->time);
@@ -69,20 +70,16 @@ static void button_press_or_release (sl_display* display, XButtonPressedEvent* e
 		}
 	}
 
-	window_handle_start {
-		if (!window->mapped || window->workspace != display->current_workspace) return;
-
+	cycle_windows_for_current_workspace_start {
 		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask))
-			sl_swap_window_with_raised_window(display, i, event->time);
+			sl_focus_and_raise_window(display, i, event->time);
 
 		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
 			display->mouse.x = event->x_root;
 			display->mouse.y = event->y_root;
 		}
-
-		return;
 	}
-	window_handle_end
+	cycle_windows_for_current_workspace_end
 }
 
 void sl_button_press (sl_display* display, XButtonPressedEvent* event) {
@@ -119,7 +116,7 @@ void sl_button_press (sl_display* display, XButtonPressedEvent* event) {
 	return button_press_or_release(display, event);
 }
 
-void sl_button_release (sl_display* display, XButtonPressedEvent* event) {
+void sl_button_release (sl_display* display, XButtonReleasedEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Keyboard and Pointer Events:
 
@@ -175,10 +172,8 @@ void sl_enter_notify (sl_display* display, XEnterWindowEvent* event) {
 
 	if (event->mode != NotifyNormal) return;
 
-	window_handle_start {
-		if (window->mapped && window->workspace == display->current_workspace) return sl_focus_window(display, i, CurrentTime);
-	}
-	window_handle_end
+	cycle_windows_for_current_workspace_start { return sl_focus_window(display, i, CurrentTime); }
+	cycle_windows_for_current_workspace_end
 }
 
 void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XLeaveWindowEvent* event) {
@@ -233,13 +228,10 @@ void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 	  and XChangeActivePointerGrab.
 	*/
 
-	display->user_input_since_last_workspace_change = true;
+	sl_window* const raised_window = sl_window_stack_get_raised_window((sl_window_stack*)&display->window_stack);
+	if (!raised_window) return;
 
-	if (!is_valid_window_index(display->raised_window_index)) return;
-
-	sl_window* const raised_window = sl_raised_window(display);
-
-	if (raised_window->state & window_state_fullscreen_bit || raised_window->maximized) return;
+	if (raised_window->state & window_state_fullscreen_bit) return;
 
 	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask)) {
 		sl_move_window(
@@ -322,10 +314,7 @@ void sl_create_notify (sl_display* display, XCreateWindowEvent* event) {
 	  application creates a window by calling XCreateWindow or XCreateSimpleWindow.
 	*/
 
-	window_handle_start { return; }
-	window_handle_end
-
-	sl_vector_push(display->windows, &(sl_window) {.x_window = event->window});
+	sl_window_stack_add_window((sl_window_stack*)&display->window_stack, &(sl_window) {.x_window = event->window});
 }
 
 void sl_destroy_notify (sl_display* display, XDestroyWindowEvent* event) {
@@ -339,8 +328,8 @@ void sl_destroy_notify (sl_display* display, XDestroyWindowEvent* event) {
 	  application destroys a window by calling XDestroyWindow or XDestroySubwindows.
 	*/
 
-	window_handle_start { return sl_window_erase(display, i, CurrentTime); }
-	window_handle_end
+	cycle_all_windows_start { return sl_window_stack_remove_window((sl_window_stack*)&display->window_stack, i); }
+	cycle_all_windows_end
 }
 
 void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XGravityEvent* event) {
@@ -394,16 +383,8 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	  client application changes the window's state from mapped to unmapped.
 	*/
 
-	window_handle_start {
-		window->mapped = false;
-
-		if (is_valid_window_index(display->focused_window_index) && display->focused_window_index == i)
-			display->focused_window_index = M_invalid_window_index;
-		if (is_valid_window_index(display->raised_window_index) && display->raised_window_index == i) sl_cycle_windows_down(display, CurrentTime);
-
-		return;
-	}
-	window_handle_end
+	cycle_windows_for_current_workspace_start { return sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&display->window_stack, i); }
+	cycle_windows_for_current_workspace_end
 }
 
 void sl_circulate_request (sl_display* display, XCirculateRequestEvent* event) {
@@ -421,21 +402,14 @@ void sl_circulate_request (sl_display* display, XCirculateRequestEvent* event) {
 	  XCirculateSubwindowsDown.
 	*/
 
-	window_handle_start {
-		if (!window->mapped || window->workspace != display->current_workspace) return;
-
+	cycle_windows_for_current_workspace_start {
 		if (event->place == PlaceOnTop) return sl_focus_and_raise_window(display, i, CurrentTime);
 
 		warn_log("todo: implement PlaceOnBottom");
-	}
-	window_handle_end
 
-	unmanaged_window_handle_start {
-		if (event->place == PlaceOnTop) return sl_focus_and_raise_unmanaged_window(display, i, CurrentTime);
-
-		warn_log("todo: implement PlaceOnBottom");
+		return;
 	}
-	unmanaged_window_handle_end
+	cycle_windows_for_current_workspace_end
 }
 
 void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
@@ -454,14 +428,7 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	  XRestackWindows, or XSetWindowBorderWidth.
 	*/
 
-	window_handle_start {
-		if (window->maximized)
-			return sl_configure_window(
-			display, window, CWX | CWY | CWWidth | CWHeight,
-			(XWindowChanges
-			) {.x = display->dimensions.x, .y = display->dimensions.y, .width = display->dimensions.width, .height = display->dimensions.height}
-			);
-
+	cycle_windows_for_current_workspace_start {
 		if (event->value_mask & (CWX | CWY | CWWidth | CWHeight)) {
 			sl_configure_window(
 			display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight),
@@ -473,17 +440,15 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 
 		return;
 	}
-	window_handle_end
+	cycle_windows_for_current_workspace_end
 }
 
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
 
 static void map_unstarted_window (sl_display* display, size_t index) {
-	sl_window* const window = sl_window_at(display, index);
+	sl_window* window = (sl_window*)&display->window_stack.data[index].window;
 
-	sl_window_start(window);
-	window->mapped = true;
-	window->workspace = display->current_workspace;
+	window->started = true;
 
 	/*
 	{
@@ -535,6 +500,8 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 		);
 	}
 
+	sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&display->window_stack, index);
+
 	sl_focus_and_raise_window(display, index, CurrentTime);
 }
 
@@ -552,13 +519,13 @@ void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	  calling XMapWindow, XMapRaised, or XMapSubwindows.
 	*/
 
-	window_handle_start {
-		if (window->started)
-			return map_started_window(display, i);
-		else
+	cycle_all_windows_start {
+		if (!window->started)
 			return map_unstarted_window(display, i);
+		else
+			return map_started_window(display, i);
 	}
-	window_handle_end
+	cycle_all_windows_end
 }
 
 void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XResizeRequestEvent* event) {
@@ -623,7 +590,7 @@ void sl_property_notify (sl_display* display, XPropertyEvent* event) {
 		return;
 	}
 
-	window_handle_start {
+	cycle_windows_for_current_workspace_start {
 		// start of icccm:
 
 		if (event->atom == XA_WM_NAME) return sl_set_window_name(window, display);
@@ -665,7 +632,7 @@ void sl_property_notify (sl_display* display, XPropertyEvent* event) {
 		warn_log("unsupported property in ProperyNotify");
 		return;
 	}
-	window_handle_end
+	cycle_windows_for_current_workspace_end
 }
 
 // empty mask events
@@ -679,7 +646,7 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 	  XSendEvent.
 	*/
 
-	window_handle_start {
+	cycle_windows_for_current_workspace_start {
 		if (event->message_type == display->atoms[net_wm_state]) {
 			if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen]) {
 				warn_log_va("[%lu] data.l[1] -> fullscreen", window->x_window);
@@ -719,33 +686,7 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 		}
 		return;
 	}
-	window_handle_end
-
-	if (event->message_type == display->atoms[net_wm_state]) {
-		if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen]) {
-			warn_log_va("[%lu] data.l[1] -> fullscreen", event->window);
-
-			if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
-				warn_log_va("[%lu] unset fullscreen", event->window);
-			} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
-				warn_log_va("[%lu] set fullscreen", event->window);
-			} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
-				warn_log_va("[%lu] toggle fullscreen", event->window);
-			}
-		}
-
-		if ((ulong)event->data.l[2] == display->atoms[net_wm_state_fullscreen]) {
-			warn_log_va("[%lu] data.l[2] -> fullscreen", event->window);
-
-			if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
-				warn_log_va("[%lu] unset fullscreen", event->window);
-			} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
-				warn_log_va("[%lu] set fullscreen", event->window);
-			} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
-				warn_log_va("[%lu] toggle fullscreen", event->window);
-			}
-		}
-	}
+	cycle_windows_for_current_workspace_end
 }
 
 void sl_mapping_notify (sl_display* display, XMappingEvent* event) {
@@ -872,8 +813,6 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 	  processing is frozen.
 	*/
 
-	display->user_input_since_last_workspace_change = true;
-
 	if (parse_mask_long(event->state) == 0) { // {k}
 		switch (XLookupKeysym(event, 0)) {
 		// desktop environment behavior
@@ -996,7 +935,6 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			return sl_maximize_raised_window(display);
 
 		case XK_c: // close
-			warn_log_va("[%lu] close", sl_raised_window(display)->x_window);
 			return sl_close_raised_window(display, event->time);
 
 		case XK_Tab: // cycle the windows
@@ -1026,46 +964,46 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 
 		// workspace manipulation
 		case XK_Right: // switch to workspace to the right
-			return sl_next_workspace(display, event->time);
+			return sl_next_workspace(display);
 
 		case XK_Left: // switch to workspace to the left
-			return sl_previous_workspace(display, event->time);
+			return sl_previous_workspace(display);
 
 		case XK_0: // switch to workspace 10
-			return sl_switch_to_workspace(display, 9, event->time);
+			return sl_switch_to_workspace(display, 9);
 
 		case XK_1: // switch to workspace 1
-			return sl_switch_to_workspace(display, 0, event->time);
+			return sl_switch_to_workspace(display, 0);
 
 		case XK_2: // switch to workspace 2
-			return sl_switch_to_workspace(display, 1, event->time);
+			return sl_switch_to_workspace(display, 1);
 
 		case XK_3: // switch to workspace 3
-			return sl_switch_to_workspace(display, 2, event->time);
+			return sl_switch_to_workspace(display, 2);
 
 		case XK_4: // switch to workspace 4
-			return sl_switch_to_workspace(display, 3, event->time);
+			return sl_switch_to_workspace(display, 3);
 
 		case XK_5: // switch to workspace 5
-			return sl_switch_to_workspace(display, 4, event->time);
+			return sl_switch_to_workspace(display, 4);
 
 		case XK_6: // switch to workspace 6
-			return sl_switch_to_workspace(display, 5, event->time);
+			return sl_switch_to_workspace(display, 5);
 
 		case XK_7: // switch to workspace 7
-			return sl_switch_to_workspace(display, 6, event->time);
+			return sl_switch_to_workspace(display, 6);
 
 		case XK_8: // switch to workspace 8
-			return sl_switch_to_workspace(display, 7, event->time);
+			return sl_switch_to_workspace(display, 7);
 
 		case XK_9: // switch to workspace 9
-			return sl_switch_to_workspace(display, 8, event->time);
+			return sl_switch_to_workspace(display, 8);
 
 		case XK_KP_Add: // add a workspace
 			return sl_push_workspace(display);
 
 		case XK_KP_Subtract: // remove the last workspace
-			return sl_pop_workspace(display, event->time);
+			return sl_pop_workspace(display);
 
 		default: assert_not_reached(); return;
 		}
@@ -1139,9 +1077,9 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 
 		// workspace manipulation
 		case XK_Right: // switch to workspace to the right while carrying the top window
-			return sl_next_workspace_with_raised_window(display, event->time);
+			return sl_next_workspace_with_raised_window(display);
 		case XK_Left: // switch to workspace to the left while carrying the top window
-			return sl_previous_workspace_with_raised_window(display, event->time);
+			return sl_previous_workspace_with_raised_window(display);
 
 		default: assert_not_reached();
 		}

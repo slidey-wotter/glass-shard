@@ -169,7 +169,6 @@ typedef struct sl_display {
 	Window const root;
 	Cursor const cursor;
 	sl_window_stack const window_stack;
-	sl_vector* const unmanaged_windows;
 	Atom const atoms[atoms_size];
 	sl_window_dimensions const dimensions;
 
@@ -179,61 +178,41 @@ typedef struct sl_display {
 		u32 x;
 		u32 y;
 	} mouse;
-
-	bool user_input_since_last_workspace_change;
 } sl_display;
 
 typedef struct sl_window sl_window; // foward declaration
 
-extern sl_display* sl_display_create (Display* x_display);
-extern void sl_display_delete (sl_display* display);
+extern sl_display* sl_display_create (Display* restrict);
+extern void sl_display_delete (sl_display* restrict);
 
-extern void sl_notify_supported_atom (sl_display* display, i8 index);
-extern void sl_grab_keys (sl_display* display);
+extern void sl_grab_keys (sl_display* restrict);
 
-extern sl_window* sl_focused_window (sl_display* display);
-extern sl_window* sl_raised_window (sl_display* display);
-extern sl_window* sl_window_at (sl_display* display, size_t index);
-extern sl_window* sl_unmanaged_window_at (sl_display* display, size_t index);
+extern void sl_cycle_windows_up (sl_display* restrict, Time);
+extern void sl_cycle_windows_down (sl_display* restrict, Time);
+extern void sl_next_workspace (sl_display* restrict);
+extern void sl_previous_workspace (sl_display* restrict);
+extern void sl_switch_to_workspace (sl_display* restrict, workspace_type);
+extern void sl_next_workspace_with_raised_window (sl_display* restrict);
+extern void sl_previous_workspace_with_raised_window (sl_display* restrict);
+extern void sl_push_workspace (sl_display* restrict);
+extern void sl_pop_workspace (sl_display* restrict);
 
-extern void sl_cycle_windows_up (sl_display* display, Time time);
-extern void sl_cycle_windows_down (sl_display* display, Time time);
+extern void sl_focus_window (sl_display* restrict, size_t, Time);
+extern void sl_raise_window (sl_display* restrict, size_t);
+extern void sl_focus_and_raise_window (sl_display* restrict, size_t, Time);
+extern void sl_focus_raised_window (sl_display* restrict, Time);
 
-extern void sl_push_workspace (sl_display* display);
-extern void sl_pop_workspace (sl_display* display, Time time);
+extern void sl_move_window (sl_display* restrict, sl_window* restrict, i16 x, i16 y);
+extern void sl_resize_window (sl_display* restrict, sl_window* restrict, u16 width, u16 height);
+extern void sl_move_and_resize_window (sl_display* restrict, sl_window* restrict, sl_window_dimensions);
+extern void sl_configure_window (sl_display* restrict, sl_window* restrict, uint value_mask, XWindowChanges window_changes);
+extern void sl_window_fullscreen_change_response (sl_display* restrict, sl_window* restrict);
+extern void sl_window_maximized_change_response (sl_display* restrict, sl_window* restrict);
 
-extern void sl_next_workspace (sl_display* display, Time time);
-extern void sl_previous_workspace (sl_display* display, Time time);
-extern void sl_switch_to_workspace (sl_display* display, size_t index, Time time);
-extern void sl_next_workspace_with_raised_window (sl_display* display, Time time);
-extern void sl_previous_workspace_with_raised_window (sl_display* display, Time time);
+extern void sl_maximize_raised_window (sl_display* restrict);
+extern void sl_expand_raised_window_to_max (sl_display* restrict);
+extern void sl_close_raised_window (sl_display* restrict, Time);
 
-extern void sl_map_windows_for_current_workspace (sl_display* display);
-extern void sl_map_windows_for_next_workspace (sl_display* display);
-extern void sl_unmap_windows_for_current_workspace (sl_display* display);
-extern void sl_map_windows_for_current_workspace_except_raised_window (sl_display* display);
-extern void sl_unmap_windows_for_current_workspace_except_raised_window (sl_display* display);
-
-extern void sl_focus_window (sl_display* display, size_t index, Time time);
-extern void sl_raise_window (sl_display* display, size_t index, Time time);
-extern void sl_focus_and_raise_window (sl_display* display, size_t index, Time time);
-extern void sl_focus_raised_window (sl_display* display, Time time);
-extern void sl_swap_window_with_raised_window (sl_display* display, size_t index, Time time);
-
-extern void sl_focus_and_raise_unmanaged_window (sl_display* display, size_t index, Time time);
-
-extern void sl_move_window (sl_display* display, sl_window* window, i16 x, i16 y);
-extern void sl_resize_window (sl_display* display, sl_window* window, u16 width, u16 height);
-extern void sl_move_and_resize_window (sl_display* display, sl_window* window, sl_window_dimensions dimensions);
-extern void sl_configure_window (sl_display* display, sl_window* window, uint value_mask, XWindowChanges window_changes);
-extern void sl_window_fullscreen_change_response (sl_display* display, sl_window* window);
-
-extern void sl_maximize_raised_window (sl_display* display);
-extern void sl_expand_raised_window_to_max (sl_display* display);
-extern void sl_close_raised_window (sl_display* display, Time time);
-
-extern void sl_delete_all_windows (sl_display* display, Time time);
-extern void sl_delete_window (sl_display* display, size_t index, Time time);
-extern void sl_delete_raised_window (sl_display* display, Time time);
-extern void sl_window_erase (sl_display* display, size_t index, Time time);
-extern void sl_raised_window_erase (sl_display* display, Time time);
+extern void sl_delete_window (sl_display* restrict, size_t, Time);
+extern void sl_delete_raised_window (sl_display* restrict, Time);
+extern void sl_delete_all_windows (sl_display* restrict, Time);
