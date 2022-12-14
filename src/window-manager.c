@@ -35,12 +35,12 @@
 #ifdef D_notify_events
 #	define event_case(M_event_type, M_event_function, M_event_structure) \
 	case M_event_type: { \
-		warn_log_va("Event: " #M_event_type " [%lu]", M_event_structure.window); \
+		warn_log_va("[%lu] Event: " #M_event_type, M_event_structure.window); \
 		M_event_function(display, &M_event_structure); \
 	} break
 #	define selection_event_case(M_event_type, M_event_function, M_event_structure) \
 	case M_event_type: { \
-		warn_log_va("Event: " #M_event_type " [%lu]", M_event_structure.requestor); \
+		warn_log_va("[%lu] Event: " #M_event_type, M_event_structure.requestor); \
 		M_event_function(display, &M_event_structure); \
 	} break
 #else
