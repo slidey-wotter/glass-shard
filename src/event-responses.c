@@ -428,7 +428,7 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	  XRestackWindows, or XSetWindowBorderWidth.
 	*/
 
-	cycle_windows_for_current_workspace_start {
+	cycle_all_windows_start {
 		if (event->value_mask & (CWX | CWY | CWWidth | CWHeight)) {
 			sl_configure_window(
 			display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight),
@@ -440,7 +440,7 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 
 		return;
 	}
-	cycle_windows_for_current_workspace_end
+	cycle_all_windows_end
 }
 
 static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
