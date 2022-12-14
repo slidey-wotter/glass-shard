@@ -18,11 +18,12 @@
 
 #include "display.h"
 
-#include "compiler-differences.h"
 #include <X11/cursorfont.h>
 #include <X11/keysym.h>
+#include <X11/Xatom.h>
 #include <X11/XF86keysym.h>
 
+#include "compiler-differences.h"
 #include "window.h"
 
 #define max(a, b) ((a > b) ? a : b)
@@ -56,6 +57,21 @@ static uint get_numlock_mask (Display* display) {
 		}
 	}
 	assert_not_reached();
+}
+
+static void set_net_supported (sl_display* restrict display) {
+	/*
+	  _NET_SUPPORTED, ATOM[]/32
+
+	  This property MUST be set by the Window Manager to indicate which hints it supports. For example: considering _NET_WM_STATE both this atom and all
+	  supported states e.g. _NET_WM_STATE_MODAL, _NET_WM_STATE_STICKY, would be listed. This assumes that backwards incompatible changes will not be
+	  made to the hints (without being renamed).
+	*/
+
+	XChangeProperty(
+	display->x_display, display->root, display->atoms[net_supported], XA_ATOM, 32, PropModeReplace, (uchar*)(display->atoms + net_supported),
+	atoms_size - net_supported
+	);
 }
 
 sl_display* sl_display_create (Display* x_display) {
@@ -114,6 +130,7 @@ sl_display* sl_display_create (Display* x_display) {
 	}
 
 	sl_grab_keys((sl_display*)display);
+	set_net_supported(display);
 
 	return (sl_display*)display;
 }

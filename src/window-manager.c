@@ -59,81 +59,6 @@ sl_window_manager* window_manager () {
 	return &manager;
 }
 
-static void set_net_supported (sl_display* display) {
-	/*
-	  _NET_SUPPORTED, ATOM[]/32
-
-	  This property MUST be set by the Window Manager to indicate which hints it supports. For example: considering _NET_WM_STATE both this atom and all
-	  supported states e.g. _NET_WM_STATE_MODAL, _NET_WM_STATE_STICKY, would be listed. This assumes that backwards incompatible changes will not be
-	  made to the hints (without being renamed).
-	*/
-
-	Atom data[] = {
-	display->atoms[net_supported],
-	display->atoms[net_wm_name],
-	display->atoms[net_wm_visible_name],
-	display->atoms[net_wm_icon_name],
-	display->atoms[net_wm_visible_icon_name],
-	display->atoms[net_wm_desktop],
-	display->atoms[net_wm_window_type],
-	display->atoms[net_wm_window_type_desktop],
-	display->atoms[net_wm_window_type_dock],
-	display->atoms[net_wm_window_type_toolbar],
-	display->atoms[net_wm_window_type_menu],
-	display->atoms[net_wm_window_type_utility],
-	display->atoms[net_wm_window_type_splash],
-	display->atoms[net_wm_window_type_dialog],
-	display->atoms[net_wm_window_type_dropdown_menu],
-	display->atoms[net_wm_window_type_popup_menu],
-	display->atoms[net_wm_window_type_tooltip],
-	display->atoms[net_wm_window_type_notification],
-	display->atoms[net_wm_window_type_combo],
-	display->atoms[net_wm_window_type_dnd],
-	display->atoms[net_wm_window_type_normal],
-	display->atoms[net_wm_state],
-	display->atoms[net_wm_state_modal],
-	display->atoms[net_wm_state_sticky],
-	display->atoms[net_wm_state_maximized_vert],
-	display->atoms[net_wm_state_maximized_horz],
-	display->atoms[net_wm_state_shaded],
-	display->atoms[net_wm_state_skip_taskbar],
-	display->atoms[net_wm_state_skip_pager],
-	display->atoms[net_wm_state_hidden],
-	display->atoms[net_wm_state_fullscreen],
-	display->atoms[net_wm_state_above],
-	display->atoms[net_wm_state_below],
-	display->atoms[net_wm_state_demands_attention],
-	display->atoms[net_wm_state_focused],
-	display->atoms[net_wm_allowed_actions],
-	display->atoms[net_wm_action_move],
-	display->atoms[net_wm_action_resize],
-	display->atoms[net_wm_action_minimize],
-	display->atoms[net_wm_action_shade],
-	display->atoms[net_wm_action_stick],
-	display->atoms[net_wm_action_maximize_horz],
-	display->atoms[net_wm_action_maximize_vert],
-	display->atoms[net_wm_action_fullscreen],
-	display->atoms[net_wm_action_change_desktop],
-	display->atoms[net_wm_action_close],
-	display->atoms[net_wm_action_above],
-	display->atoms[net_wm_action_below],
-	display->atoms[net_wm_strut],
-	display->atoms[net_wm_strut_partial],
-	display->atoms[net_wm_icon_geometry],
-	display->atoms[net_wm_icon],
-	display->atoms[net_wm_pid],
-	display->atoms[net_wm_handled_icons],
-	display->atoms[net_wm_user_time],
-	display->atoms[net_wm_user_time_window],
-	display->atoms[net_frame_extents],
-	display->atoms[net_wm_opaque_region],
-	display->atoms[net_wm_bypass_compositor]};
-
-	XChangeProperty(
-	display->x_display, display->root, display->atoms[net_supported], XA_ATOM, 32, PropModeReplace, (uchar*)data, sizeof(data) / sizeof(Atom)
-	);
-}
-
 int main () {
 	sl_display* display;
 
@@ -155,8 +80,6 @@ int main () {
 		assert(x_display = XOpenDisplay(NULL));
 		display = sl_display_create(x_display);
 	}
-
-	set_net_supported(display);
 
 	warn_log("todo: this should be where we create threads for every display and handle each individually");
 	for (XEvent event; !XNextEvent(display->x_display, &event);) {
