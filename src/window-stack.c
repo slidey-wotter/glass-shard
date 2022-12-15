@@ -119,6 +119,8 @@ static void workspace_vector_set_new_allocated_size (sl_workspace_vector* restri
 
 	memmove(new_indexes, this->indexes, sizeof(size_t) * this->size);
 
+	free((void*)this->indexes);
+
 	*(sl_workspace_vector_mutable*)this = (sl_workspace_vector_mutable) {.indexes = new_indexes, .size = this->size, .allocated_size = allocated_size};
 }
 
@@ -261,6 +263,8 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 
 		++j;
 	}
+
+	free((void*)this->data);
 
 	((sl_window_stack_mutable*)this)->data = new_data;
 	((sl_window_stack_mutable*)this)->size = new_size;
