@@ -308,7 +308,11 @@ void sl_window_stack_add_workspace (sl_window_stack* restrict this) {
 void sl_window_stack_remove_workspace (sl_window_stack* restrict this) {
 	if (this->workspace_vector.size <= 1) return;
 
-	if (this->current_workspace == this->workspace_vector.size - 1) --((sl_window_stack_mutable*)this)->current_workspace;
+	if (this->current_workspace == this->workspace_vector.size - 2) ((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
+
+	if (this->current_workspace == this->workspace_vector.size - 1) {
+		--((sl_window_stack_mutable*)this)->current_workspace;
+	}
 
 	if (this->workspace_vector.indexes[this->workspace_vector.size - 1] == M_invalid_index) {
 		window_stack_print();
@@ -362,6 +366,8 @@ void sl_window_stack_cycle_down (sl_window_stack* restrict this) {
 }
 
 void sl_window_stack_cycle_workspace_up (sl_window_stack* restrict this) {
+	((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
+
 	++((sl_window_stack_mutable*)this)->current_workspace;
 	((sl_window_stack_mutable*)this)->current_workspace %= this->workspace_vector.size;
 
@@ -369,6 +375,8 @@ void sl_window_stack_cycle_workspace_up (sl_window_stack* restrict this) {
 }
 
 void sl_window_stack_cycle_workspace_down (sl_window_stack* restrict this) {
+	((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
+
 	if (this->current_workspace == 0)
 		((sl_window_stack_mutable*)this)->current_workspace = this->workspace_vector.size - 1;
 	else
@@ -405,6 +413,7 @@ void sl_window_stack_set_raised_window_as_focused (sl_window_stack* restrict thi
 }
 
 void sl_window_stack_set_current_workspace (sl_window_stack* restrict this, workspace_type workspace) {
+	((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
 	((sl_window_stack_mutable*)this)->current_workspace = workspace;
 
 	window_stack_print();

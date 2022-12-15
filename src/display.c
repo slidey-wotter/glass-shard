@@ -330,25 +330,29 @@ static void unmap_windows_for_current_workspace (sl_display* restrict this) {
 	}
 }
 
-void sl_next_workspace (sl_display* restrict this) {
+void sl_next_workspace (sl_display* restrict this, Time time) {
 	if (this->window_stack.workspace_vector.size == 1) return;
 
 	unmap_windows_for_current_workspace(this);
 	sl_window_stack_cycle_workspace_up((sl_window_stack*)&this->window_stack);
 	map_windows_for_current_workspace(this);
+
+	sl_focus_raised_window(this, time);
 }
 
-void sl_previous_workspace (sl_display* restrict this) {
+void sl_previous_workspace (sl_display* restrict this, Time time) {
 	if (this->window_stack.workspace_vector.size == 1) return;
 
 	unmap_windows_for_current_workspace(this);
 	sl_window_stack_cycle_workspace_down((sl_window_stack*)&this->window_stack);
 	map_windows_for_current_workspace(this);
+
+	sl_focus_raised_window(this, time);
 }
 
 void sl_push_workspace (sl_display* restrict this) { return sl_window_stack_add_workspace((sl_window_stack*)&this->window_stack); }
 
-void sl_pop_workspace (sl_display* restrict this) {
+void sl_pop_workspace (sl_display* restrict this, Time time) {
 	if (this->window_stack.workspace_vector.size <= 1) return;
 
 	if (this->window_stack.current_workspace == this->window_stack.workspace_vector.size - 1) {
@@ -370,9 +374,11 @@ void sl_pop_workspace (sl_display* restrict this) {
 	}
 
 	sl_window_stack_remove_workspace((sl_window_stack*)&this->window_stack);
+
+	sl_focus_raised_window(this, time);
 }
 
-void sl_switch_to_workspace (sl_display* restrict this, workspace_type workspace) {
+void sl_switch_to_workspace (sl_display* restrict this, workspace_type workspace, Time time) {
 	if (workspace == this->window_stack.current_workspace) return;
 	if (workspace >= this->window_stack.workspace_vector.size) return;
 	if (this->window_stack.workspace_vector.size == 1) return;
@@ -380,6 +386,8 @@ void sl_switch_to_workspace (sl_display* restrict this, workspace_type workspace
 	unmap_windows_for_current_workspace(this);
 	sl_window_stack_set_current_workspace((sl_window_stack*)&this->window_stack, workspace);
 	map_windows_for_current_workspace(this);
+
+	sl_focus_raised_window(this, time);
 }
 
 void sl_next_workspace_with_raised_window (sl_display* restrict this) {

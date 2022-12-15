@@ -189,13 +189,13 @@ extern void sl_grab_keys (sl_display* restrict);
 
 extern void sl_cycle_windows_up (sl_display* restrict, Time);
 extern void sl_cycle_windows_down (sl_display* restrict, Time);
-extern void sl_next_workspace (sl_display* restrict);
-extern void sl_previous_workspace (sl_display* restrict);
-extern void sl_switch_to_workspace (sl_display* restrict, workspace_type);
+extern void sl_next_workspace (sl_display* restrict, Time);
+extern void sl_previous_workspace (sl_display* restrict, Time);
+extern void sl_switch_to_workspace (sl_display* restrict, workspace_type, Time);
 extern void sl_next_workspace_with_raised_window (sl_display* restrict);
 extern void sl_previous_workspace_with_raised_window (sl_display* restrict);
 extern void sl_push_workspace (sl_display* restrict);
-extern void sl_pop_workspace (sl_display* restrict);
+extern void sl_pop_workspace (sl_display* restrict, Time);
 
 extern void sl_focus_window (sl_display* restrict, size_t, Time);
 extern void sl_raise_window (sl_display* restrict, size_t);

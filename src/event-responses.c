@@ -964,46 +964,46 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 
 		// workspace manipulation
 		case XK_Right: // switch to workspace to the right
-			return sl_next_workspace(display);
+			return sl_next_workspace(display, event->time);
 
 		case XK_Left: // switch to workspace to the left
-			return sl_previous_workspace(display);
+			return sl_previous_workspace(display, event->time);
 
 		case XK_0: // switch to workspace 10
-			return sl_switch_to_workspace(display, 9);
+			return sl_switch_to_workspace(display, 9, event->time);
 
 		case XK_1: // switch to workspace 1
-			return sl_switch_to_workspace(display, 0);
+			return sl_switch_to_workspace(display, 0, event->time);
 
 		case XK_2: // switch to workspace 2
-			return sl_switch_to_workspace(display, 1);
+			return sl_switch_to_workspace(display, 1, event->time);
 
 		case XK_3: // switch to workspace 3
-			return sl_switch_to_workspace(display, 2);
+			return sl_switch_to_workspace(display, 2, event->time);
 
 		case XK_4: // switch to workspace 4
-			return sl_switch_to_workspace(display, 3);
+			return sl_switch_to_workspace(display, 3, event->time);
 
 		case XK_5: // switch to workspace 5
-			return sl_switch_to_workspace(display, 4);
+			return sl_switch_to_workspace(display, 4, event->time);
 
 		case XK_6: // switch to workspace 6
-			return sl_switch_to_workspace(display, 5);
+			return sl_switch_to_workspace(display, 5, event->time);
 
 		case XK_7: // switch to workspace 7
-			return sl_switch_to_workspace(display, 6);
+			return sl_switch_to_workspace(display, 6, event->time);
 
 		case XK_8: // switch to workspace 8
-			return sl_switch_to_workspace(display, 7);
+			return sl_switch_to_workspace(display, 7, event->time);
 
 		case XK_9: // switch to workspace 9
-			return sl_switch_to_workspace(display, 8);
+			return sl_switch_to_workspace(display, 8, event->time);
 
 		case XK_KP_Add: // add a workspace
 			return sl_push_workspace(display);
 
 		case XK_KP_Subtract: // remove the last workspace
-			return sl_pop_workspace(display);
+			return sl_pop_workspace(display, event->time);
 
 		default: assert_not_reached(); return;
 		}
