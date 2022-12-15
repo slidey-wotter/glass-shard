@@ -21,7 +21,6 @@
 #include <X11/Xlib.h>
 
 #include "message.h"
-#include "vector.h"
 #include "window-dimensions.h"
 #include "window-stack.h"
 #include "workspace-type.h"

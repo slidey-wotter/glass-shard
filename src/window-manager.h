@@ -18,9 +18,9 @@
 
 #pragma once
 
-#include <X11/Xlib.h>
+#include "types.h"
 
-#include "vector.h"
+#include <X11/Xlib.h>
 
 typedef struct sl_window_manager {
 	bool logout;
