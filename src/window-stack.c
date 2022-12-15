@@ -181,12 +181,19 @@ void sl_window_stack_delete (sl_window_stack* restrict this) {
 	workspace_vector_delete((sl_workspace_vector*)&this->workspace_vector);
 }
 
+struct index_pair {
+	size_t previous;
+	size_t next;
+};
+
 static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict this) {
 	if (this->allocated_size >= this->size + 1) return;
 
-	size_t new_size = 0;
+	size_t new_size = 0, index_pair_array_size = 0;
 	for (size_t i = 0; i < this->size; ++i) {
-		if (!this->data[i].flagged_for_deletion) ++new_size;
+		if (this->data[i].flagged_for_deletion) continue;
+		if (this->data[i].next != M_invalid_index) ++index_pair_array_size;
+		++new_size;
 	}
 
 	size_t allocated_size = this->allocated_size;
@@ -203,10 +210,16 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 		return;
 	}
 
-	for (size_t i = 0; i < new_size; ++i) {
-		new_data[i].next = M_invalid_index;
-		new_data[i].previous = M_invalid_index;
-		new_data[i].flagged_for_deletion = false;
+	struct index_pair index_pair_array[index_pair_array_size];
+
+	for (size_t i = 0, j = 0, k = 0; i < this->size; ++i) {
+		if (this->data[i].flagged_for_deletion) continue;
+		if (this->data[i].next != M_invalid_index) {
+			index_pair_array[k].previous = i;
+			index_pair_array[k].next = j;
+			++k;
+		}
+		++j;
 	}
 
 	for (size_t i = 0, j = 0; i < this->size; ++i) {
@@ -221,14 +234,29 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 
 		if (this->focused_window_index == i) ((sl_window_stack_mutable*)this)->focused_window_index = j;
 
-		new_data[j].window = *(sl_window_mutable*)&this->data[i].window;
+		new_data[j] = *(sl_window_node_mutable*)&this->data[i];
 
-		// note: oof
-		for (size_t k = 0, l = 0; k < this->size; ++k) {
-			if (this->data[k].flagged_for_deletion) continue;
-			if (this->data[k].next == i) new_data[l].next = j;
-			if (this->data[k].previous == i) new_data[l].previous = j;
-			++l;
+		if (new_data[j].next != M_invalid_index) {
+			bool found = false;
+			for (size_t k = 0; k < index_pair_array_size; ++k) {
+				if (new_data[j].next == index_pair_array[k].previous) {
+					new_data[j].next = index_pair_array[k].next;
+					if (!found) {
+						found = true;
+						goto next;
+					}
+					break;
+				}
+			next:
+				if (new_data[j].previous == index_pair_array[k].previous) {
+					new_data[j].previous = index_pair_array[k].next;
+					if (!found) {
+						found = true;
+						continue;
+					}
+					break;
+				}
+			}
 		}
 
 		++j;
