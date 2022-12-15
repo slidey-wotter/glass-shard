@@ -196,14 +196,14 @@ void sl_grab_keys (sl_display* restrict this) {
 }
 
 static void focus_window_impl (sl_display* restrict this, sl_window* restrict window, Time time) {
+	uint const modifiers[] = {0, this->numlockmask, LockMask, this->numlockmask | LockMask};
+	for (size_t i = 0; i < 4; ++i)
+		XUngrabButton(this->x_display, Button1, modifiers[i], window->x_window);
+
 	if (!window->hints.input) {
 		// the window must focus itself
 		return;
 	}
-
-	uint const modifiers[] = {0, this->numlockmask, LockMask, this->numlockmask | LockMask};
-	for (size_t i = 0; i < 4; ++i)
-		XUngrabButton(this->x_display, Button1, modifiers[i], window->x_window);
 
 	{
 		warn_log("todo: serial");
