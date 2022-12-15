@@ -203,6 +203,12 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 		return;
 	}
 
+	for (size_t i = 0; i < new_size; ++i) {
+		new_data[i].next = M_invalid_index;
+		new_data[i].previous = M_invalid_index;
+		new_data[i].flagged_for_deletion = false;
+	}
+
 	for (size_t i = 0, j = 0; i < this->size; ++i) {
 		if (this->data[i].flagged_for_deletion) continue;
 
@@ -215,13 +221,14 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 
 		if (this->focused_window_index == i) ((sl_window_stack_mutable*)this)->focused_window_index = j;
 
-		new_data[j] = *(sl_window_node_mutable*)&this->data[i];
+		new_data[j].window = *(sl_window_mutable*)&this->data[i].window;
 
-		if (new_data[j].next != M_invalid_index) {
-			// note: we can assume both next and previous are valid
-
-			new_data[j].next -= i - j;
-			new_data[j].previous -= i - j;
+		// note: oof
+		for (size_t k = 0, l = 0; k < this->size; ++k) {
+			if (this->data[k].flagged_for_deletion) continue;
+			if (this->data[k].next == i) new_data[l].next = j;
+			if (this->data[k].previous == i) new_data[l].previous = j;
+			++l;
 		}
 
 		++j;
