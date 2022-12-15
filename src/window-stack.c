@@ -206,8 +206,12 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 	for (size_t i = 0, j = 0; i < this->size; ++i) {
 		if (this->data[i].flagged_for_deletion) continue;
 
-		if (this->workspace_vector.indexes[this->current_workspace] == i)
-			((sl_window_stack_mutable*)this)->workspace_vector.indexes[this->current_workspace] = j;
+		for (size_t k = 0; k < this->workspace_vector.size; ++k) {
+			if (this->workspace_vector.indexes[k] == i) {
+				((sl_window_stack_mutable*)this)->workspace_vector.indexes[k] = j;
+				break;
+			}
+		}
 
 		if (this->focused_window_index == i) ((sl_window_stack_mutable*)this)->focused_window_index = j;
 
