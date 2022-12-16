@@ -158,16 +158,16 @@ void sl_grab_keys (sl_display* restrict this) {
 
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_Right), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_Left), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_0), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_1), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_2), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_3), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_4), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_5), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_6), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_7), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_8), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_9), Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_0), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_1), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_2), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_3), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_4), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_5), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_6), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_7), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_8), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_9), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_KP_Add), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_KP_Subtract), Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 
@@ -175,16 +175,16 @@ void sl_grab_keys (sl_display* restrict this) {
 
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_Tab), ShiftMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_0), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_1), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_2), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_3), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_4), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_5), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_6), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_7), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_8), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
-		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_9), ControlMask | Mod4Mask | modifiers[1], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_0), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_1), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_2), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_3), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_4), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_5), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_6), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_7), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_8), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
+		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_9), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 
 		XGrabKey(x_display, XKeysymToKeycode(x_display, XK_m), ControlMask | Mod4Mask | modifiers[i], root, true, GrabModeAsync, GrabModeAsync);
 
