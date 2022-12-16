@@ -300,6 +300,8 @@ void sl_window_stack_add_window (sl_window_stack* restrict this, sl_window* wind
 void sl_window_stack_remove_window (sl_window_stack* restrict this, size_t index) {
 	((sl_window_stack_mutable*)this)->data[index].flagged_for_deletion = true;
 
+	if (this->data[index].next != M_invalid_index) sl_window_stack_remove_window_from_its_workspace(this, index);
+
 	window_stack_print();
 }
 
@@ -328,8 +330,8 @@ void sl_window_stack_add_window_to_current_workspace (sl_window_stack* restrict 
 
 void sl_window_stack_remove_window_from_its_workspace (sl_window_stack* restrict this, size_t index) {
 	if (this->data[index].previous == index) {
-		if (this->workspace_vector.indexes[this->current_workspace] == index)
-			((sl_window_stack_mutable*)this)->workspace_vector.indexes[this->current_workspace] = M_invalid_index;
+		for (size_t i = 0; i < this->workspace_vector.size; ++i)
+			if (this->workspace_vector.indexes[i] == index) ((sl_window_stack_mutable*)this)->workspace_vector.indexes[i] = M_invalid_index;
 
 		if (this->focused_window_index == index) ((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
 
@@ -341,8 +343,8 @@ void sl_window_stack_remove_window_from_its_workspace (sl_window_stack* restrict
 		return;
 	}
 
-	if (this->workspace_vector.indexes[this->current_workspace] == index)
-		((sl_window_stack_mutable*)this)->workspace_vector.indexes[this->current_workspace] = this->data[index].previous;
+	for (size_t i = 0; i < this->workspace_vector.size; ++i)
+		if (this->workspace_vector.indexes[i] == index) ((sl_window_stack_mutable*)this)->workspace_vector.indexes[i] = this->data[index].previous;
 
 	if (this->focused_window_index == index) ((sl_window_stack_mutable*)this)->focused_window_index = M_invalid_index;
 
