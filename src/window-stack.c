@@ -212,6 +212,19 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 		return;
 	}
 
+	if (this->size == new_size) {
+		// none of the nodes are flagged for deletion
+
+		memcpy(new_data, this->data, sizeof(sl_window_node) * this->size);
+
+		free((void*)this->data);
+
+		((sl_window_stack_mutable*)this)->data = new_data;
+		((sl_window_stack_mutable*)this)->allocated_size = new_allocated_size;
+
+		return;
+	}
+
 	struct index_pair index_pair_array[index_pair_array_size];
 
 	for (size_t i = 0, j = 0, k = 0; i < this->size; ++i) {
