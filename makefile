@@ -1,8 +1,6 @@
 cc = gcc
 ccache = ccache
 
-include predefined.mk
-
 cflags = -DD_gcc -Wall -Wextra
 release_cflags = -DD_release -DD_quiet -O3 -march=native -pipe
 debug_cflags = -DD_debug -Og -g -fsanitize=undefined
@@ -10,6 +8,8 @@ ldflags = -lX11
 release_ldflags = -Wl,-O1,--as-needed,-z,relro,-z,now
 debug_ldflags = -lubsan
 source_directory = src
+
+include predefined.mk
 
 exec := glass-shard
 dependencies := $(wildcard ./${source_directory}/*.c)
@@ -87,12 +87,12 @@ clean:
 	./generate-dependencies.sh ./$@ ./${source_directory} ./${release_directory}/${object_directory} ./${debug_directory}/${object_directory}
 .SILENT: ./.dependencies.mk
 
-./${release_directory}/${object_directory}/%.o: ./${source_directory}/%.c ./makefile
+./${release_directory}/${object_directory}/%.o: ./${source_directory}/%.c ./makefile ./predefined.mk
 	echo "[build]  ./$@"
 	${ccache} ${cc} ./$< -c -o ./$@ ${cflags} ${release_cflags}
 .SILENT: ${release_objects}
 
-./${debug_directory}/${object_directory}/%.o: ./${source_directory}/%.c ./makefile
+./${debug_directory}/${object_directory}/%.o: ./${source_directory}/%.c ./makefile ./predefined.mk
 	echo "[build]  ./$@"
 	${ccache} ${cc} ./$< -c -o ./$@ ${cflags} ${debug_cflags}
 .SILENT: ${debug_objects}
