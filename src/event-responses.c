@@ -50,6 +50,16 @@
 	if (i == display->window_stack.workspace_vector.indexes[display->window_stack.current_workspace]) break; \
 	}
 
+#define cycle_all_mapped_windows_start \
+	for (size_t j = 0; j < display->window_stack.workspace_vector.size; ++j) \
+		if (sl_window_stack_is_valid_index(display->window_stack.workspace_vector.indexes[j])) \
+			for (size_t i = display->window_stack.data[display->window_stack.workspace_vector.indexes[j]].next;; i = display->window_stack.data[i].next) { \
+				sl_window* window = (sl_window*)&display->window_stack.data[i].window; \
+				if (window->x_window == event->window)
+#define cycle_all_mapped_windows_end \
+	if (i == display->window_stack.workspace_vector.indexes[j]) break; \
+	}
+
 #define cycle_all_windows_start \
 	for (size_t i = 0; i < display->window_stack.size; ++i) { \
 		if (display->window_stack.data[i].flagged_for_deletion) continue; \
@@ -388,8 +398,12 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	  client application changes the window's state from mapped to unmapped.
 	*/
 
-	cycle_windows_for_current_workspace_start { return sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&display->window_stack, i); }
-	cycle_windows_for_current_workspace_end
+	cycle_all_mapped_windows_start {
+		if (j == display->window_stack.current_workspace || event->send_event)
+			return sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&display->window_stack, i);
+		return;
+	}
+	cycle_all_mapped_windows_end
 }
 
 void sl_circulate_request (sl_display* display, XCirculateRequestEvent* event) {
