@@ -42,8 +42,7 @@ void signal_handler (int signal_number) {
 	}
 }
 
-int xerror_handler (Display* display, XErrorEvent* p_error_event) {
-	XErrorEvent* const error_event = p_error_event;
+int xerror_handler (Display* display, XErrorEvent* error_event) {
 	char error_text[4096];
 	XGetErrorText(display, error_event->error_code, error_text, 4096);
 	warn_log_va(

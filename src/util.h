@@ -21,6 +21,6 @@
 #include <X11/Xlib.h>
 
 extern void signal_handler (int signal_number);
-extern int xerror_handler (Display* display, XErrorEvent* p_error_event);
+extern int xerror_handler (Display* display, XErrorEvent* error_event);
 extern int xio_error_handler (Display* display);
 extern void exec_program (Display* display, char* const* args);
