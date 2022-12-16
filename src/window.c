@@ -95,8 +95,13 @@ static void window_set_text_property (sl_window* window, sl_display* display, At
 
 	if (sized_string->data) free(sized_string->data);
 
-	window_log("ignoring encoding and format");
 	sized_string->size = text_property.nitems;
+	if (sized_string->size == 0) {
+		sized_string->data = NULL;
+		return;
+	}
+
+	window_log("ignoring encoding and format");
 	sized_string->data = malloc(sizeof(uchar) * sized_string->size);
 	memcpy(sized_string->data, text_property.value, sized_string->size);
 }
