@@ -489,7 +489,6 @@ static void map_unstarted_window (sl_display* display, size_t index) {
 
 	uint const modifiers[] = {0, LockMask, display->numlockmask, LockMask | display->numlockmask};
 	for (unsigned i = 0; i < 4; ++i) {
-		XGrabButton(display->x_display, Button1, modifiers[i], window->x_window, false, ButtonPressMask, GrabModeAsync, GrabModeAsync, None, None);
 		XGrabButton(
 		display->x_display, Button1, Mod4Mask | modifiers[i], window->x_window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
 		GrabModeAsync, GrabModeAsync, None, None
