@@ -198,16 +198,16 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 		++new_size;
 	}
 
-	size_t allocated_size = this->allocated_size;
-	while (allocated_size < new_size + 1)
-		allocated_size <<= 1;
-	while (allocated_size >> 1 > new_size + 1)
-		allocated_size >>= 1;
+	size_t new_allocated_size = this->allocated_size;
+	while (new_allocated_size < new_size + 1)
+		new_allocated_size <<= 1;
+	while (new_allocated_size >> 1 > new_size + 1)
+		new_allocated_size >>= 1;
 
-	sl_window_node_mutable* new_data = malloc(sizeof(sl_window_node_mutable) * allocated_size);
+	sl_window_node_mutable* new_data = malloc(sizeof(sl_window_node_mutable) * new_allocated_size);
 
 	if (!new_data) {
-		warn_log_va("size of %lu is invalid", allocated_size);
+		warn_log_va("size of %lu is invalid", new_allocated_size);
 
 		return;
 	}
@@ -268,7 +268,7 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 
 	((sl_window_stack_mutable*)this)->data = new_data;
 	((sl_window_stack_mutable*)this)->size = new_size;
-	((sl_window_stack_mutable*)this)->allocated_size = allocated_size;
+	((sl_window_stack_mutable*)this)->allocated_size = new_allocated_size;
 
 	window_stack_print();
 }
