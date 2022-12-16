@@ -172,7 +172,12 @@ void sl_enter_notify (sl_display* display, XEnterWindowEvent* event) {
 
 	if (event->mode != NotifyNormal) return;
 
-	cycle_windows_for_current_workspace_start { return sl_focus_window(display, i, CurrentTime); }
+	cycle_windows_for_current_workspace_start {
+		if (event->focus)
+			sl_window_stack_set_focused_window((sl_window_stack*)&display->window_stack, i);
+		else
+			return sl_focus_window(display, i, CurrentTime);
+	}
 	cycle_windows_for_current_workspace_end
 }
 
