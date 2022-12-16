@@ -809,6 +809,10 @@ void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XFocusOutE
 	*/
 }
 
+#define invalid_key_press \
+	warn_log("invalid key press"); \
+	return
+
 // KeyPressMask
 void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 	/*
@@ -886,7 +890,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			return exec_program(display->x_display, args);
 		}
 
-		default: assert_not_reached();
+		default: invalid_key_press;
 		}
 	}
 
@@ -912,7 +916,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			return exec_program(display->x_display, args);
 		}
 
-		default: assert_not_reached();
+		default: invalid_key_press;
 		}
 	}
 
@@ -938,7 +942,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			return exec_program(display->x_display, args);
 		}
 
-		default: assert_not_reached(); break;
+		default: invalid_key_press;
 		}
 	}
 
@@ -1030,7 +1034,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 		case XK_KP_Subtract: // remove the last workspace
 			return sl_pop_workspace(display, event->time);
 
-		default: assert_not_reached(); return;
+		default: invalid_key_press;
 		}
 	}
 
@@ -1039,7 +1043,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 		case XK_Tab: // cycle the windows
 			return sl_cycle_windows_up(display, event->time);
 
-		default: assert_not_reached();
+		default: invalid_key_press;
 		}
 	}
 
@@ -1048,7 +1052,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 		case XK_Tab: // cycle the windows (reverse)
 			return sl_cycle_windows_down(display, event->time);
 
-		default: assert_not_reached();
+		default: invalid_key_press;
 		}
 	}
 
@@ -1106,7 +1110,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 		case XK_Left: // switch to workspace to the left while carrying the top window
 			return sl_previous_workspace_with_raised_window(display);
 
-		default: assert_not_reached();
+		default: invalid_key_press;
 		}
 	}
 
@@ -1115,7 +1119,7 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 		case XK_Tab: // cycle the windows (reverse)
 			return sl_cycle_windows_down(display, event->time);
 
-		default: assert_not_reached();
+		default: invalid_key_press;
 		}
 	}
 
