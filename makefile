@@ -1,8 +1,9 @@
 cc = gcc
 ccache = ccache
 
-cflags = -DD_notify_events -DD_window_stack_log -DD_gcc -Wall -Wextra
-#cflags = -DD_gcc
+include predefined.mk
+
+cflags = -DD_gcc -Wall -Wextra
 release_cflags = -DD_release -DD_quiet -O3 -march=native -pipe
 debug_cflags = -DD_debug -Og -g -fsanitize=undefined
 ldflags = -lX11
