@@ -540,10 +540,17 @@ void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XResi
 	*/
 }
 
-#ifdef D_notify_properties
-#	define property_log(M_name) warn_log("Property: " M_name)
+#ifdef D_property_log
+#	define property_log(M_property, M_code) \
+		if (event->atom == M_property) { \
+			warn_log(#M_property); \
+			M_code; \
+		}
 #else
-#	define property_log(M_name)
+#	define property_log(M_property, M_code) \
+		if (event->atom == M_property) { \
+			M_code; \
+		}
 #endif
 
 void sl_property_notify (sl_display* display, XPropertyEvent* event) {
@@ -585,46 +592,46 @@ void sl_property_notify (sl_display* display, XPropertyEvent* event) {
 	*/
 
 	if (event->state == PropertyDelete) {
-		property_log("PropertyDelete");
+		warn_log("PropertyDelete");
 		return;
 	}
 
 	cycle_windows_for_current_workspace_start {
 		// start of icccm:
 
-		if (event->atom == XA_WM_NAME) return sl_set_window_name(window, display);
-		if (event->atom == XA_WM_ICON_NAME) return sl_set_window_icon_name(window, display);
-		if (event->atom == XA_WM_NORMAL_HINTS) return sl_set_window_normal_hints(window, display);
-		if (event->atom == XA_WM_HINTS) return sl_set_window_hints(window, display);
-		if (event->atom == XA_WM_CLASS) return sl_set_window_class(window, display);
-		if (event->atom == XA_WM_TRANSIENT_FOR) return sl_set_window_transient_for(window, display);
-		if (event->atom == display->atoms[wm_protocols]) return sl_set_window_protocols(window, display);
-		if (event->atom == display->atoms[wm_colormap_windows]) return sl_set_window_colormap_windows(window, display);
-		if (event->atom == XA_WM_CLIENT_MACHINE) return sl_set_window_client_machine(window, display);
+		property_log(XA_WM_NAME, return sl_set_window_name(window, display));
+		property_log(XA_WM_ICON_NAME, return sl_set_window_icon_name(window, display));
+		property_log(XA_WM_NORMAL_HINTS, return sl_set_window_normal_hints(window, display));
+		property_log(XA_WM_HINTS, return sl_set_window_hints(window, display));
+		property_log(XA_WM_CLASS, return sl_set_window_class(window, display));
+		property_log(XA_WM_TRANSIENT_FOR, return sl_set_window_transient_for(window, display));
+		property_log(display->atoms[wm_protocols], return sl_set_window_protocols(window, display));
+		property_log(display->atoms[wm_colormap_windows], return sl_set_window_colormap_windows(window, display));
+		property_log(XA_WM_CLIENT_MACHINE, return sl_set_window_client_machine(window, display));
 
 		// end
 
 		// start of extended window manager hints:
 
-		if (event->atom == display->atoms[net_wm_name]) return sl_window_set_net_wm_name(window, display);
-		if (event->atom == display->atoms[net_wm_visible_name]) return sl_window_set_net_wm_visible_name(window, display);
-		if (event->atom == display->atoms[net_wm_icon_name]) return sl_window_set_net_wm_icon_name(window, display);
-		if (event->atom == display->atoms[net_wm_visible_icon_name]) return sl_window_set_net_wm_visible_icon_name(window, display);
-		if (event->atom == display->atoms[net_wm_desktop]) return sl_window_set_net_wm_desktop(window, display);
-		if (event->atom == display->atoms[net_wm_window_type]) return sl_window_set_net_wm_window_type(window, display);
-		if (event->atom == display->atoms[net_wm_state]) return sl_window_set_net_wm_state(window, display);
-		if (event->atom == display->atoms[net_wm_allowed_actions]) return sl_window_set_net_wm_allowed_actions(window, display);
-		if (event->atom == display->atoms[net_wm_strut]) return sl_window_set_net_wm_strut(window, display);
-		if (event->atom == display->atoms[net_wm_strut_partial]) return sl_window_set_net_wm_strut_partial(window, display);
-		if (event->atom == display->atoms[net_wm_icon_geometry]) return sl_window_set_net_wm_icon_geometry(window, display);
-		if (event->atom == display->atoms[net_wm_icon]) return sl_window_set_net_wm_icon(window, display);
-		if (event->atom == display->atoms[net_wm_pid]) return sl_window_set_net_wm_pid(window, display);
-		if (event->atom == display->atoms[net_wm_handled_icons]) return sl_window_set_net_wm_handled_icons(window, display);
-		if (event->atom == display->atoms[net_wm_user_time]) return sl_window_set_net_wm_user_time(window, display);
-		if (event->atom == display->atoms[net_wm_user_time_window]) return sl_window_set_net_wm_user_time_window(window, display);
-		if (event->atom == display->atoms[net_frame_extents]) return sl_window_set_net_frame_extents(window, display);
-		if (event->atom == display->atoms[net_wm_opaque_region]) return sl_window_set_net_wm_opaque_region(window, display);
-		if (event->atom == display->atoms[net_wm_bypass_compositor]) return sl_window_set_net_wm_bypass_compositor(window, display);
+		property_log(display->atoms[net_wm_name], return sl_window_set_net_wm_name(window, display));
+		property_log(display->atoms[net_wm_visible_name], return sl_window_set_net_wm_visible_name(window, display));
+		property_log(display->atoms[net_wm_icon_name], return sl_window_set_net_wm_icon_name(window, display));
+		property_log(display->atoms[net_wm_visible_icon_name], return sl_window_set_net_wm_visible_icon_name(window, display));
+		property_log(display->atoms[net_wm_desktop], return sl_window_set_net_wm_desktop(window, display));
+		property_log(display->atoms[net_wm_window_type], return sl_window_set_net_wm_window_type(window, display));
+		property_log(display->atoms[net_wm_state], return sl_window_set_net_wm_state(window, display));
+		property_log(display->atoms[net_wm_allowed_actions], return sl_window_set_net_wm_allowed_actions(window, display));
+		property_log(display->atoms[net_wm_strut], return sl_window_set_net_wm_strut(window, display));
+		property_log(display->atoms[net_wm_strut_partial], return sl_window_set_net_wm_strut_partial(window, display));
+		property_log(display->atoms[net_wm_icon_geometry], return sl_window_set_net_wm_icon_geometry(window, display));
+		property_log(display->atoms[net_wm_icon], return sl_window_set_net_wm_icon(window, display));
+		property_log(display->atoms[net_wm_pid], return sl_window_set_net_wm_pid(window, display));
+		property_log(display->atoms[net_wm_handled_icons], return sl_window_set_net_wm_handled_icons(window, display));
+		property_log(display->atoms[net_wm_user_time], return sl_window_set_net_wm_user_time(window, display));
+		property_log(display->atoms[net_wm_user_time_window], return sl_window_set_net_wm_user_time_window(window, display));
+		property_log(display->atoms[net_frame_extents], return sl_window_set_net_frame_extents(window, display));
+		property_log(display->atoms[net_wm_opaque_region], return sl_window_set_net_wm_opaque_region(window, display));
+		property_log(display->atoms[net_wm_bypass_compositor], return sl_window_set_net_wm_bypass_compositor(window, display));
 
 		// end
 
