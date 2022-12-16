@@ -58,7 +58,6 @@ typedef struct sl_window_mutable {
 
 	struct window_hints {
 		bool input;
-		u8 state;
 		bool urgent;
 	} hints;
 

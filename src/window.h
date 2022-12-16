@@ -57,20 +57,22 @@ enum {
 };
 
 enum {
-	window_state_modal_bit = 1 << 0,
-	window_state_sticky_bit = 1 << 1,
-	window_state_maximized_vert_bit = 1 << 2,
-	window_state_maximized_horz_bit = 1 << 3,
-	window_state_shaded_bit = 1 << 4,
-	window_state_skip_taskbar_bit = 1 << 5,
-	window_state_skip_pager_bit = 1 << 6,
-	window_state_hidden_bit = 1 << 7,
-	window_state_fullscreen_bit = 1 << 8,
-	window_state_above_bit = 1 << 9,
-	window_state_below_bit = 1 << 10,
-	window_state_demands_attention_bit = 1 << 11,
-	window_state_focused_bit = 1 << 12,
-	all_window_states = 0b1111111111111
+	window_state_normal_bit = 1 << 0,
+	window_state_iconified_bit = 1 << 1,
+	window_state_modal_bit = 1 << 2,
+	window_state_sticky_bit = 1 << 3,
+	window_state_maximized_vert_bit = 1 << 4,
+	window_state_maximized_horz_bit = 1 << 5,
+	window_state_shaded_bit = 1 << 6,
+	window_state_skip_taskbar_bit = 1 << 7,
+	window_state_skip_pager_bit = 1 << 8,
+	window_state_hidden_bit = 1 << 9,
+	window_state_fullscreen_bit = 1 << 10,
+	window_state_above_bit = 1 << 11,
+	window_state_below_bit = 1 << 12,
+	window_state_demands_attention_bit = 1 << 13,
+	window_state_focused_bit = 1 << 14,
+	all_window_states = 0b111111111111111
 };
 
 struct sl_sized_string {
@@ -107,7 +109,6 @@ typedef struct sl_window {
 
 	struct {
 		bool input;
-		u8 state;
 		bool urgent;
 	} const hints;
 
@@ -162,6 +163,9 @@ extern void sl_window_set_net_wm_bypass_compositor (sl_window* restrict, sl_disp
 
 extern void sl_window_set_all_properties (sl_window* restrict, sl_display* restrict);
 
+extern void sl_window_set_withdrawn (sl_window* restrict);
+extern void sl_window_set_normal (sl_window* restrict);
+extern void sl_window_set_iconified (sl_window* restrict);
 extern void sl_window_set_fullscreen (sl_window* restrict, sl_display* restrict, bool);
 extern void sl_window_toggle_fullscreen (sl_window* restrict, sl_display* restrict);
 extern void sl_window_set_horizontally_maximized (sl_window* restrict, sl_display* restrict, bool);

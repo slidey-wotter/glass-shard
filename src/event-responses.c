@@ -398,8 +398,24 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	  client application changes the window's state from mapped to unmapped.
 	*/
 
+	/*
+	  note:
+
+	  For compatibility with obsolete clients, window managers should
+	  trigger the transition to the Withdrawn state on the real UnmapNotify
+	  rather than waiting for the synthetic one. They should also trigger
+	  the transition if they receive a synthetic UnmapNotify on a window
+	  for which they have not yet received a real UnmapNotify.
+	*/
+
 	cycle_all_mapped_windows_start {
-		if (j == display->window_stack.current_workspace || event->send_event)
+		if (event->send_event) {
+			sl_window_set_withdrawn(window);
+			sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&display->window_stack, i);
+			return;
+		}
+
+		if (j == display->window_stack.current_workspace)
 			return sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&display->window_stack, i);
 		return;
 	}
@@ -462,7 +478,11 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	cycle_all_windows_end
 }
 
-static void map_started_window (M_maybe_unused sl_display* display, M_maybe_unused size_t index) { warn_log("TODO: map_started_window"); }
+static void map_started_window (sl_display* display, size_t index) {
+	sl_window* window = (sl_window*)&display->window_stack.data[index].window;
+	XMapWindow(display->x_display, window->x_window);
+	sl_window_set_normal(window);
+}
 
 static void map_unstarted_window (sl_display* display, size_t index) {
 	sl_window* window = (sl_window*)&display->window_stack.data[index].window;
@@ -671,7 +691,14 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 	  XSendEvent.
 	*/
 
-	cycle_windows_for_current_workspace_start {
+	cycle_all_mapped_windows_start {
+		// note: assuming event->format == 32
+
+		if (event->message_type == display->atoms[wm_change_state]) {
+			// note: assuming event.data.l[0] == IconicState
+			return sl_window_set_iconified(window);
+		}
+
 		if (event->message_type == display->atoms[net_wm_state]) {
 			if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen]) {
 				warn_log_va("[%lu] data.l[1] -> fullscreen", window->x_window);
@@ -711,7 +738,7 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 		}
 		return;
 	}
-	cycle_windows_for_current_workspace_end
+	cycle_all_mapped_windows_end
 }
 
 void sl_mapping_notify (sl_display* display, XMappingEvent* event) {

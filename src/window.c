@@ -450,7 +450,8 @@ void sl_set_window_hints (sl_window* window, sl_display* display) {
 	*/
 	window_log_va("[%lu] set window hints", window->x_window);
 
-	((sl_window_mutable*)window)->hints = (struct window_hints) {.input = true, .state = NormalState, .urgent = false};
+	((sl_window_mutable*)window)->hints = (struct window_hints) {.input = true, .urgent = false};
+	((sl_window_mutable*)window)->state = window_state_normal_bit;
 
 	XWMHints* hints = XGetWMHints(display->x_display, window->x_window);
 
@@ -459,16 +460,21 @@ void sl_set_window_hints (sl_window* window, sl_display* display) {
 	window_log("ignoring some of the window's hints");
 
 	if (hints->flags & InputHint) ((sl_window_mutable*)window)->hints.input = hints->input;
-	if (hints->flags & StateHint) ((sl_window_mutable*)window)->hints.state = hints->initial_state;
+	if (hints->flags & StateHint) {
+		if (hints->initial_state == NormalState) {
+			((sl_window_mutable*)window)->state |= window_state_normal_bit;
+		} else if (hints->initial_state == IconicState) {
+			((sl_window_mutable*)window)->state &= all_window_states - window_state_normal_bit;
+			((sl_window_mutable*)window)->state |= window_state_iconified_bit;
+		}
+	}
 	if (hints->flags & 256) ((sl_window_mutable*)window)->hints.urgent = true;
 
 	XFree(hints);
 
 	window_log_va(
 	"[%lu] window hints: input %s, state %s, urgent %s", window->x_window, window->hints.input ? "true" : "false",
-	window->hints.state == NormalState ? "normal" :
-	window->hints.state == IconicState ? "iconic" :
-	                                     "undefined",
+	window->state & window_state_normal_bit ? "normal" : "iconic",
 	window->hints.urgent ? "true" : "false"
 	); // epic clang-format again
 }
@@ -1551,6 +1557,20 @@ static void window_state_change (sl_window* window, sl_display* display) {
 	}
 
 	XChangeProperty(display->x_display, window->x_window, display->atoms[net_wm_state], XA_ATOM, 32, PropModeReplace, (uchar*)data, i);
+}
+
+void sl_window_set_withdrawn (sl_window* restrict window) {
+	((sl_window_mutable*)window)->state &= all_window_states - (window_state_normal_bit | window_state_iconified_bit);
+}
+
+void sl_window_set_normal (sl_window* restrict window) {
+	((sl_window_mutable*)window)->state &= all_window_states - window_state_iconified_bit;
+	((sl_window_mutable*)window)->state |= window_state_normal_bit;
+}
+
+void sl_window_set_iconified (sl_window* restrict window) {
+	((sl_window_mutable*)window)->state &= all_window_states - window_state_normal_bit;
+	((sl_window_mutable*)window)->state |= window_state_iconified_bit;
 }
 
 void sl_window_set_fullscreen (sl_window* window, sl_display* display, bool fullscreen) {
