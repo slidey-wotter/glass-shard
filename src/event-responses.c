@@ -183,10 +183,9 @@ void sl_enter_notify (sl_display* display, XEnterWindowEvent* event) {
 	if (event->mode != NotifyNormal) return;
 
 	cycle_windows_for_current_workspace_start {
-		if (event->focus)
-			sl_window_stack_set_focused_window((sl_window_stack*)&display->window_stack, i);
-		else
-			return sl_focus_window(display, i, CurrentTime);
+		if (event->focus) return sl_window_stack_set_focused_window((sl_window_stack*)&display->window_stack, i);
+
+		return sl_focus_window(display, i, CurrentTime);
 	}
 	cycle_windows_for_current_workspace_end
 }
@@ -329,7 +328,7 @@ void sl_create_notify (sl_display* display, XCreateWindowEvent* event) {
 	  application creates a window by calling XCreateWindow or XCreateSimpleWindow.
 	*/
 
-	sl_window_stack_add_window((sl_window_stack*)&display->window_stack, &(sl_window) {.x_window = event->window});
+	return sl_window_stack_add_window((sl_window_stack*)&display->window_stack, &(sl_window) {.x_window = event->window});
 }
 
 void sl_destroy_notify (sl_display* display, XDestroyWindowEvent* event) {
@@ -417,6 +416,7 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 
 		if (j == display->window_stack.current_workspace)
 			return sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&display->window_stack, i);
+
 		return;
 	}
 	cycle_all_mapped_windows_end
@@ -560,8 +560,8 @@ void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	cycle_all_windows_start {
 		if (window->flags & window_started_bit)
 			return map_started_window(display, i);
-		else
-			return map_unstarted_window(display, i);
+
+		return map_unstarted_window(display, i);
 	}
 	cycle_all_windows_end
 }
@@ -736,6 +736,7 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 				}
 			}
 		}
+		
 		return;
 	}
 	cycle_all_mapped_windows_end
