@@ -450,8 +450,8 @@ void sl_set_window_hints (sl_window* window, sl_display* display) {
 	*/
 	window_log_va("[%lu] set window hints", window->x_window);
 
-	((sl_window_mutable*)window)->hints = (struct window_hints) {.input = true, .urgent = false};
-	((sl_window_mutable*)window)->state = window_state_normal_bit;
+	((sl_window_mutable*)window)->flags |= window_hints_input_bit | window_state_normal_bit;
+	((sl_window_mutable*)window)->flags &= window_all_flags - (window_hints_urgent_bit | window_state_iconified_bit);
 
 	XWMHints* hints = XGetWMHints(display->x_display, window->x_window);
 
@@ -459,24 +459,22 @@ void sl_set_window_hints (sl_window* window, sl_display* display) {
 
 	window_log("ignoring some of the window's hints");
 
-	if (hints->flags & InputHint) ((sl_window_mutable*)window)->hints.input = hints->input;
+	if (!(hints->flags & InputHint)) ((sl_window_mutable*)window)->flags &= window_all_flags - window_hints_input_bit;
+
 	if (hints->flags & StateHint) {
-		if (hints->initial_state == NormalState) {
-			((sl_window_mutable*)window)->state |= window_state_normal_bit;
-		} else if (hints->initial_state == IconicState) {
-			((sl_window_mutable*)window)->state &= all_window_states - window_state_normal_bit;
-			((sl_window_mutable*)window)->state |= window_state_iconified_bit;
+		if (hints->initial_state == IconicState) {
+			((sl_window_mutable*)window)->flags &= window_all_flags - window_state_normal_bit;
+			((sl_window_mutable*)window)->flags |= window_state_iconified_bit;
 		}
 	}
-	if (hints->flags & 256) ((sl_window_mutable*)window)->hints.urgent = true;
+	if (hints->flags & 256) ((sl_window_mutable*)window)->flags |= window_hints_urgent_bit;
 
 	XFree(hints);
 
 	window_log_va(
-	"[%lu] window hints: input %s, state %s, urgent %s", window->x_window, window->hints.input ? "true" : "false",
-	window->state & window_state_normal_bit ? "normal" : "iconic",
-	window->hints.urgent ? "true" : "false"
-	); // epic clang-format again
+	"[%lu] window hints: input %s, state %s, urgent %s", window->x_window, window->flags & window_hints_input_bit ? "true" : "false",
+	window->flags & window_state_normal_bit ? "normal" : "iconic", window->flags & window_hints_urgent_bit ? "true" : "false"
+	);
 }
 
 void sl_set_window_class (M_maybe_unused sl_window* window, M_maybe_unused sl_display* display) {
@@ -575,18 +573,18 @@ void sl_set_window_protocols (sl_window* window, sl_display* display) {
 	Atom* protocols = NULL;
 	int n = 0;
 
-	if (!XGetWMProtocols(display->x_display, window->x_window, &protocols, &n)) return;
+	((sl_window_mutable*)window)->flags &= window_all_flags - (window_protocols_take_focus_bit | window_protocols_delete_window_bit);
 
-	((sl_window_mutable*)window)->have_protocols = (struct window_protocols) {.take_focus = false, .delete_window = false};
+	if (!XGetWMProtocols(display->x_display, window->x_window, &protocols, &n)) return;
 
 	for (size_t i = 0; i <= (size_t)n; ++i) {
 		if (protocols[i] == display->atoms[wm_take_focus]) {
-			((sl_window_mutable*)window)->have_protocols.take_focus = true;
+			((sl_window_mutable*)window)->flags |= window_protocols_take_focus_bit;
 			continue;
 		}
 
 		if (protocols[i] == display->atoms[wm_delete_window]) {
-			((sl_window_mutable*)window)->have_protocols.delete_window = true;
+			((sl_window_mutable*)window)->flags |= window_protocols_delete_window_bit;
 			continue;
 		}
 	}
@@ -595,9 +593,10 @@ void sl_set_window_protocols (sl_window* window, sl_display* display) {
 
 	window_log_va(
 	"[%lu] window protocols: %s", window->x_window,
-	window->have_protocols.take_focus    ? (window->have_protocols.delete_window ? "take focus and delete window" : "take focus") :
-	window->have_protocols.delete_window ? "delete window" :
-	                                       "none"
+	window->flags & window_protocols_take_focus_bit ?
+	(window->flags & window_protocols_delete_window_bit ? "take focus and delete window" : "take focus") :
+	window->flags & window_protocols_delete_window_bit ? "delete window" :
+	                                                     "none"
 	);
 }
 
@@ -949,45 +948,45 @@ void sl_window_set_net_wm_window_type (M_maybe_unused sl_window* window, M_maybe
 	Atom* prop = NULL;
 	ulong items_size;
 
+	((sl_window_mutable*)window)->flags &= window_all_flags - window_all_types;
+
 	if (get_net_atom_list(window, display, net_wm_window_type, (uchar**)&prop, &items_size) != 0) return;
 
-	((sl_window_mutable*)window)->type = 0;
-
 	for (size_t i = 0; i < items_size; ++i) {
-		if (prop[i] == display->atoms[net_wm_window_type_desktop]) ((sl_window_mutable*)window)->type |= window_type_desktop_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_dock]) ((sl_window_mutable*)window)->type |= window_type_dock_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_toolbar]) ((sl_window_mutable*)window)->type |= window_type_toolbar_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_menu]) ((sl_window_mutable*)window)->type |= window_type_menu_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_utility]) ((sl_window_mutable*)window)->type |= window_type_utility_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_splash]) ((sl_window_mutable*)window)->type |= window_type_splash_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_dialog]) ((sl_window_mutable*)window)->type |= window_type_dialog_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_dropdown_menu]) ((sl_window_mutable*)window)->type |= window_type_dropdown_menu_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_popup_menu]) ((sl_window_mutable*)window)->type |= window_type_popup_menu_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_tooltip]) ((sl_window_mutable*)window)->type |= window_type_tooltip_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_notification]) ((sl_window_mutable*)window)->type |= window_type_notification_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_combo]) ((sl_window_mutable*)window)->type |= window_type_combo_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_dnd]) ((sl_window_mutable*)window)->type |= window_type_dnd_bit;
-		if (prop[i] == display->atoms[net_wm_window_type_normal]) ((sl_window_mutable*)window)->type |= window_type_normal_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_desktop]) ((sl_window_mutable*)window)->flags |= window_type_desktop_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dock]) ((sl_window_mutable*)window)->flags |= window_type_dock_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_toolbar]) ((sl_window_mutable*)window)->flags |= window_type_toolbar_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_menu]) ((sl_window_mutable*)window)->flags |= window_type_menu_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_utility]) ((sl_window_mutable*)window)->flags |= window_type_utility_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_splash]) ((sl_window_mutable*)window)->flags |= window_type_splash_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dialog]) ((sl_window_mutable*)window)->flags |= window_type_dialog_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dropdown_menu]) ((sl_window_mutable*)window)->flags |= window_type_dropdown_menu_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_popup_menu]) ((sl_window_mutable*)window)->flags |= window_type_popup_menu_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_tooltip]) ((sl_window_mutable*)window)->flags |= window_type_tooltip_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_notification]) ((sl_window_mutable*)window)->flags |= window_type_notification_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_combo]) ((sl_window_mutable*)window)->flags |= window_type_combo_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_dnd]) ((sl_window_mutable*)window)->flags |= window_type_dnd_bit;
+		if (prop[i] == display->atoms[net_wm_window_type_normal]) ((sl_window_mutable*)window)->flags |= window_type_normal_bit;
 	}
 
 	XFree(prop);
 
 	char buffer[256] = "";
 
-	if (window->type & window_type_desktop_bit) strcat(buffer, "desktop ");
-	if (window->type & window_type_dock_bit) strcat(buffer, "dock ");
-	if (window->type & window_type_toolbar_bit) strcat(buffer, "toolbar ");
-	if (window->type & window_type_menu_bit) strcat(buffer, "menu ");
-	if (window->type & window_type_utility_bit) strcat(buffer, "utility ");
-	if (window->type & window_type_splash_bit) strcat(buffer, "splash ");
-	if (window->type & window_type_dialog_bit) strcat(buffer, "dialog ");
-	if (window->type & window_type_dropdown_menu_bit) strcat(buffer, "dropdown_menu ");
-	if (window->type & window_type_popup_menu_bit) strcat(buffer, "popup_menu ");
-	if (window->type & window_type_tooltip_bit) strcat(buffer, "tooltip ");
-	if (window->type & window_type_notification_bit) strcat(buffer, "notification ");
-	if (window->type & window_type_combo_bit) strcat(buffer, "combo ");
-	if (window->type & window_type_dnd_bit) strcat(buffer, "dnd ");
-	if (window->type & window_type_normal_bit) strcat(buffer, "normal ");
+	if (window->flags & window_type_desktop_bit) strcat(buffer, "desktop ");
+	if (window->flags & window_type_dock_bit) strcat(buffer, "dock ");
+	if (window->flags & window_type_toolbar_bit) strcat(buffer, "toolbar ");
+	if (window->flags & window_type_menu_bit) strcat(buffer, "menu ");
+	if (window->flags & window_type_utility_bit) strcat(buffer, "utility ");
+	if (window->flags & window_type_splash_bit) strcat(buffer, "splash ");
+	if (window->flags & window_type_dialog_bit) strcat(buffer, "dialog ");
+	if (window->flags & window_type_dropdown_menu_bit) strcat(buffer, "dropdown_menu ");
+	if (window->flags & window_type_popup_menu_bit) strcat(buffer, "popup_menu ");
+	if (window->flags & window_type_tooltip_bit) strcat(buffer, "tooltip ");
+	if (window->flags & window_type_notification_bit) strcat(buffer, "notification ");
+	if (window->flags & window_type_combo_bit) strcat(buffer, "combo ");
+	if (window->flags & window_type_dnd_bit) strcat(buffer, "dnd ");
+	if (window->flags & window_type_normal_bit) strcat(buffer, "normal ");
 
 	window_log_va("[%lu] window type: %s", window->x_window, buffer);
 }
@@ -1101,43 +1100,43 @@ void sl_window_set_net_wm_state (M_maybe_unused sl_window* window, M_maybe_unuse
 	Atom* prop = NULL;
 	ulong items_size;
 
+	((sl_window_mutable*)window)->flags &= window_all_flags - window_all_states;
+
 	if (get_net_atom_list(window, display, net_wm_state, (uchar**)&prop, &items_size) != 0) return;
 
-	((sl_window_mutable*)window)->state = 0;
-
 	for (size_t i = 0; i < items_size; ++i) {
-		if (prop[i] == display->atoms[net_wm_state_modal]) ((sl_window_mutable*)window)->state |= window_state_modal_bit;
-		if (prop[i] == display->atoms[net_wm_state_sticky]) ((sl_window_mutable*)window)->state |= window_state_sticky_bit;
-		if (prop[i] == display->atoms[net_wm_state_maximized_vert]) ((sl_window_mutable*)window)->state |= window_state_maximized_vert_bit;
-		if (prop[i] == display->atoms[net_wm_state_maximized_horz]) ((sl_window_mutable*)window)->state |= window_state_maximized_horz_bit;
-		if (prop[i] == display->atoms[net_wm_state_shaded]) ((sl_window_mutable*)window)->state |= window_state_shaded_bit;
-		if (prop[i] == display->atoms[net_wm_state_skip_taskbar]) ((sl_window_mutable*)window)->state |= window_state_skip_taskbar_bit;
-		if (prop[i] == display->atoms[net_wm_state_skip_pager]) ((sl_window_mutable*)window)->state |= window_state_skip_pager_bit;
-		if (prop[i] == display->atoms[net_wm_state_hidden]) ((sl_window_mutable*)window)->state |= window_state_hidden_bit;
-		if (prop[i] == display->atoms[net_wm_state_fullscreen]) ((sl_window_mutable*)window)->state |= window_state_fullscreen_bit;
-		if (prop[i] == display->atoms[net_wm_state_above]) ((sl_window_mutable*)window)->state |= window_state_above_bit;
-		if (prop[i] == display->atoms[net_wm_state_below]) ((sl_window_mutable*)window)->state |= window_state_below_bit;
-		if (prop[i] == display->atoms[net_wm_state_demands_attention]) ((sl_window_mutable*)window)->state |= window_state_demands_attention_bit;
-		if (prop[i] == display->atoms[net_wm_state_focused]) ((sl_window_mutable*)window)->state |= window_state_focused_bit;
+		if (prop[i] == display->atoms[net_wm_state_modal]) ((sl_window_mutable*)window)->flags |= window_state_modal_bit;
+		if (prop[i] == display->atoms[net_wm_state_sticky]) ((sl_window_mutable*)window)->flags |= window_state_sticky_bit;
+		if (prop[i] == display->atoms[net_wm_state_maximized_vert]) ((sl_window_mutable*)window)->flags |= window_state_maximized_vert_bit;
+		if (prop[i] == display->atoms[net_wm_state_maximized_horz]) ((sl_window_mutable*)window)->flags |= window_state_maximized_horz_bit;
+		if (prop[i] == display->atoms[net_wm_state_shaded]) ((sl_window_mutable*)window)->flags |= window_state_shaded_bit;
+		if (prop[i] == display->atoms[net_wm_state_skip_taskbar]) ((sl_window_mutable*)window)->flags |= window_state_skip_taskbar_bit;
+		if (prop[i] == display->atoms[net_wm_state_skip_pager]) ((sl_window_mutable*)window)->flags |= window_state_skip_pager_bit;
+		if (prop[i] == display->atoms[net_wm_state_hidden]) ((sl_window_mutable*)window)->flags |= window_state_hidden_bit;
+		if (prop[i] == display->atoms[net_wm_state_fullscreen]) ((sl_window_mutable*)window)->flags |= window_state_fullscreen_bit;
+		if (prop[i] == display->atoms[net_wm_state_above]) ((sl_window_mutable*)window)->flags |= window_state_above_bit;
+		if (prop[i] == display->atoms[net_wm_state_below]) ((sl_window_mutable*)window)->flags |= window_state_below_bit;
+		if (prop[i] == display->atoms[net_wm_state_demands_attention]) ((sl_window_mutable*)window)->flags |= window_state_demands_attention_bit;
+		if (prop[i] == display->atoms[net_wm_state_focused]) ((sl_window_mutable*)window)->flags |= window_state_focused_bit;
 	}
 
 	XFree(prop);
 
 	char buffer[256] = "";
 
-	if (window->state & window_state_modal_bit) strcat(buffer, "modal ");
-	if (window->state & window_state_sticky_bit) strcat(buffer, "sticky ");
-	if (window->state & window_state_maximized_vert_bit) strcat(buffer, "maximized_vert ");
-	if (window->state & window_state_maximized_horz_bit) strcat(buffer, "maximized_horz ");
-	if (window->state & window_state_shaded_bit) strcat(buffer, "shaded ");
-	if (window->state & window_state_skip_taskbar_bit) strcat(buffer, "skip_taskbar ");
-	if (window->state & window_state_skip_pager_bit) strcat(buffer, "skip_pager ");
-	if (window->state & window_state_hidden_bit) strcat(buffer, "hidden ");
-	if (window->state & window_state_fullscreen_bit) strcat(buffer, "fullscreen ");
-	if (window->state & window_state_above_bit) strcat(buffer, "above ");
-	if (window->state & window_state_below_bit) strcat(buffer, "below ");
-	if (window->state & window_state_demands_attention_bit) strcat(buffer, "demands_attention ");
-	if (window->state & window_state_focused_bit) strcat(buffer, "focused ");
+	if (window->flags & window_state_modal_bit) strcat(buffer, "modal ");
+	if (window->flags & window_state_sticky_bit) strcat(buffer, "sticky ");
+	if (window->flags & window_state_maximized_vert_bit) strcat(buffer, "maximized_vert ");
+	if (window->flags & window_state_maximized_horz_bit) strcat(buffer, "maximized_horz ");
+	if (window->flags & window_state_shaded_bit) strcat(buffer, "shaded ");
+	if (window->flags & window_state_skip_taskbar_bit) strcat(buffer, "skip_taskbar ");
+	if (window->flags & window_state_skip_pager_bit) strcat(buffer, "skip_pager ");
+	if (window->flags & window_state_hidden_bit) strcat(buffer, "hidden ");
+	if (window->flags & window_state_fullscreen_bit) strcat(buffer, "fullscreen ");
+	if (window->flags & window_state_above_bit) strcat(buffer, "above ");
+	if (window->flags & window_state_below_bit) strcat(buffer, "below ");
+	if (window->flags & window_state_demands_attention_bit) strcat(buffer, "demands_attention ");
+	if (window->flags & window_state_focused_bit) strcat(buffer, "focused ");
 
 	window_log_va("[%lu] window state: %s", window->x_window, buffer);
 }
@@ -1209,41 +1208,41 @@ void sl_window_set_net_wm_allowed_actions (M_maybe_unused sl_window* window, M_m
 	Atom* prop = NULL;
 	ulong items_size;
 
+	((sl_window_mutable*)window)->flags &= window_all_flags - window_all_allowed_actions;
+
 	if (get_net_atom_list(window, display, net_wm_allowed_actions, (uchar**)&prop, &items_size) != 0) return;
 
-	((sl_window_mutable*)window)->allowed_actions = 0;
-
 	for (size_t i = 0; i < items_size; ++i) {
-		if (prop[i] == display->atoms[net_wm_action_move]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_move_bit;
-		if (prop[i] == display->atoms[net_wm_action_resize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_resize_bit;
-		if (prop[i] == display->atoms[net_wm_action_minimize]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_minimize_bit;
-		if (prop[i] == display->atoms[net_wm_action_shade]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_shade_bit;
-		if (prop[i] == display->atoms[net_wm_action_stick]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_stick_bit;
-		if (prop[i] == display->atoms[net_wm_action_maximize_horz]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_horz_bit;
-		if (prop[i] == display->atoms[net_wm_action_maximize_vert]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_maximize_vert_bit;
-		if (prop[i] == display->atoms[net_wm_action_fullscreen]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_fullscreen_bit;
-		if (prop[i] == display->atoms[net_wm_action_change_desktop]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_change_desktop_bit;
-		if (prop[i] == display->atoms[net_wm_action_close]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_close_bit;
-		if (prop[i] == display->atoms[net_wm_action_above]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_above_bit;
-		if (prop[i] == display->atoms[net_wm_action_below]) ((sl_window_mutable*)window)->allowed_actions |= allowed_action_below_bit;
+		if (prop[i] == display->atoms[net_wm_action_move]) ((sl_window_mutable*)window)->flags |= window_allowed_action_move_bit;
+		if (prop[i] == display->atoms[net_wm_action_resize]) ((sl_window_mutable*)window)->flags |= window_allowed_action_resize_bit;
+		if (prop[i] == display->atoms[net_wm_action_minimize]) ((sl_window_mutable*)window)->flags |= window_allowed_action_minimize_bit;
+		if (prop[i] == display->atoms[net_wm_action_shade]) ((sl_window_mutable*)window)->flags |= window_allowed_action_shade_bit;
+		if (prop[i] == display->atoms[net_wm_action_stick]) ((sl_window_mutable*)window)->flags |= window_allowed_action_stick_bit;
+		if (prop[i] == display->atoms[net_wm_action_maximize_horz]) ((sl_window_mutable*)window)->flags |= window_allowed_action_maximize_horz_bit;
+		if (prop[i] == display->atoms[net_wm_action_maximize_vert]) ((sl_window_mutable*)window)->flags |= window_allowed_action_maximize_vert_bit;
+		if (prop[i] == display->atoms[net_wm_action_fullscreen]) ((sl_window_mutable*)window)->flags |= window_allowed_action_fullscreen_bit;
+		if (prop[i] == display->atoms[net_wm_action_change_desktop]) ((sl_window_mutable*)window)->flags |= window_allowed_action_change_desktop_bit;
+		if (prop[i] == display->atoms[net_wm_action_close]) ((sl_window_mutable*)window)->flags |= window_allowed_action_close_bit;
+		if (prop[i] == display->atoms[net_wm_action_above]) ((sl_window_mutable*)window)->flags |= window_allowed_action_above_bit;
+		if (prop[i] == display->atoms[net_wm_action_below]) ((sl_window_mutable*)window)->flags |= window_allowed_action_below_bit;
 	}
 
 	XFree(prop);
 
 	char buffer[256] = "";
 
-	if (window->allowed_actions & allowed_action_move_bit) strcat(buffer, "move ");
-	if (window->allowed_actions & allowed_action_resize_bit) strcat(buffer, "resize ");
-	if (window->allowed_actions & allowed_action_minimize_bit) strcat(buffer, "minimize ");
-	if (window->allowed_actions & allowed_action_shade_bit) strcat(buffer, "shade ");
-	if (window->allowed_actions & allowed_action_stick_bit) strcat(buffer, "stick ");
-	if (window->allowed_actions & allowed_action_maximize_horz_bit) strcat(buffer, "maximize_horz ");
-	if (window->allowed_actions & allowed_action_maximize_vert_bit) strcat(buffer, "maximize_vert ");
-	if (window->allowed_actions & allowed_action_fullscreen_bit) strcat(buffer, "fullscreen ");
-	if (window->allowed_actions & allowed_action_change_desktop_bit) strcat(buffer, "change_desktop ");
-	if (window->allowed_actions & allowed_action_close_bit) strcat(buffer, "close ");
-	if (window->allowed_actions & allowed_action_above_bit) strcat(buffer, "above ");
-	if (window->allowed_actions & allowed_action_below_bit) strcat(buffer, "below ");
+	if (window->flags & window_allowed_action_move_bit) strcat(buffer, "move ");
+	if (window->flags & window_allowed_action_resize_bit) strcat(buffer, "resize ");
+	if (window->flags & window_allowed_action_minimize_bit) strcat(buffer, "minimize ");
+	if (window->flags & window_allowed_action_shade_bit) strcat(buffer, "shade ");
+	if (window->flags & window_allowed_action_stick_bit) strcat(buffer, "stick ");
+	if (window->flags & window_allowed_action_maximize_horz_bit) strcat(buffer, "maximize_horz ");
+	if (window->flags & window_allowed_action_maximize_vert_bit) strcat(buffer, "maximize_vert ");
+	if (window->flags & window_allowed_action_fullscreen_bit) strcat(buffer, "fullscreen ");
+	if (window->flags & window_allowed_action_change_desktop_bit) strcat(buffer, "change_desktop ");
+	if (window->flags & window_allowed_action_close_bit) strcat(buffer, "close ");
+	if (window->flags & window_allowed_action_above_bit) strcat(buffer, "above ");
+	if (window->flags & window_allowed_action_below_bit) strcat(buffer, "below ");
 
 	window_log_va("[%lu] allowed actions: %s", window->x_window, buffer);
 }
@@ -1486,72 +1485,72 @@ void sl_window_set_all_properties (sl_window* window, sl_display* display) {
 static void window_state_change (sl_window* window, sl_display* display) {
 	size_t i = 0;
 
-	if (window->state & window_state_modal_bit) ++i;
-	if (window->state & window_state_sticky_bit) ++i;
-	if (window->state & window_state_maximized_vert_bit) ++i;
-	if (window->state & window_state_maximized_horz_bit) ++i;
-	if (window->state & window_state_shaded_bit) ++i;
-	if (window->state & window_state_skip_taskbar_bit) ++i;
-	if (window->state & window_state_skip_pager_bit) ++i;
-	if (window->state & window_state_hidden_bit) ++i;
-	if (window->state & window_state_fullscreen_bit) ++i;
-	if (window->state & window_state_above_bit) ++i;
-	if (window->state & window_state_below_bit) ++i;
-	if (window->state & window_state_demands_attention_bit) ++i;
-	if (window->state & window_state_focused_bit) ++i;
+	if (window->flags & window_state_modal_bit) ++i;
+	if (window->flags & window_state_sticky_bit) ++i;
+	if (window->flags & window_state_maximized_vert_bit) ++i;
+	if (window->flags & window_state_maximized_horz_bit) ++i;
+	if (window->flags & window_state_shaded_bit) ++i;
+	if (window->flags & window_state_skip_taskbar_bit) ++i;
+	if (window->flags & window_state_skip_pager_bit) ++i;
+	if (window->flags & window_state_hidden_bit) ++i;
+	if (window->flags & window_state_fullscreen_bit) ++i;
+	if (window->flags & window_state_above_bit) ++i;
+	if (window->flags & window_state_below_bit) ++i;
+	if (window->flags & window_state_demands_attention_bit) ++i;
+	if (window->flags & window_state_focused_bit) ++i;
 
 	Atom data[i];
 	i = 0;
 
-	if (window->state & window_state_modal_bit) {
+	if (window->flags & window_state_modal_bit) {
 		data[i] = display->atoms[net_wm_state_modal];
 		++i;
 	}
-	if (window->state & window_state_sticky_bit) {
+	if (window->flags & window_state_sticky_bit) {
 		data[i] = display->atoms[net_wm_state_sticky];
 		++i;
 	}
-	if (window->state & window_state_maximized_vert_bit) {
+	if (window->flags & window_state_maximized_vert_bit) {
 		data[i] = display->atoms[net_wm_state_maximized_vert];
 		++i;
 	}
-	if (window->state & window_state_maximized_horz_bit) {
+	if (window->flags & window_state_maximized_horz_bit) {
 		data[i] = display->atoms[net_wm_state_maximized_horz];
 		++i;
 	}
-	if (window->state & window_state_shaded_bit) {
+	if (window->flags & window_state_shaded_bit) {
 		data[i] = display->atoms[net_wm_state_shaded];
 		++i;
 	}
-	if (window->state & window_state_skip_taskbar_bit) {
+	if (window->flags & window_state_skip_taskbar_bit) {
 		data[i] = display->atoms[net_wm_state_skip_taskbar];
 		++i;
 	}
-	if (window->state & window_state_skip_pager_bit) {
+	if (window->flags & window_state_skip_pager_bit) {
 		data[i] = display->atoms[net_wm_state_skip_pager];
 		++i;
 	}
-	if (window->state & window_state_hidden_bit) {
+	if (window->flags & window_state_hidden_bit) {
 		data[i] = display->atoms[net_wm_state_hidden];
 		++i;
 	}
-	if (window->state & window_state_fullscreen_bit) {
+	if (window->flags & window_state_fullscreen_bit) {
 		data[i] = display->atoms[net_wm_state_fullscreen];
 		++i;
 	}
-	if (window->state & window_state_above_bit) {
+	if (window->flags & window_state_above_bit) {
 		data[i] = display->atoms[net_wm_state_above];
 		++i;
 	}
-	if (window->state & window_state_below_bit) {
+	if (window->flags & window_state_below_bit) {
 		data[i] = display->atoms[net_wm_state_below];
 		++i;
 	}
-	if (window->state & window_state_demands_attention_bit) {
+	if (window->flags & window_state_demands_attention_bit) {
 		data[i] = display->atoms[net_wm_state_demands_attention];
 		++i;
 	}
-	if (window->state & window_state_focused_bit) {
+	if (window->flags & window_state_focused_bit) {
 		data[i] = display->atoms[net_wm_state_focused];
 		++i;
 	}
@@ -1560,70 +1559,70 @@ static void window_state_change (sl_window* window, sl_display* display) {
 }
 
 void sl_window_set_withdrawn (sl_window* restrict window) {
-	((sl_window_mutable*)window)->state &= all_window_states - (window_state_normal_bit | window_state_iconified_bit);
+	((sl_window_mutable*)window)->flags &= window_all_flags - (window_state_normal_bit | window_state_iconified_bit);
 }
 
 void sl_window_set_normal (sl_window* restrict window) {
-	((sl_window_mutable*)window)->state &= all_window_states - window_state_iconified_bit;
-	((sl_window_mutable*)window)->state |= window_state_normal_bit;
+	((sl_window_mutable*)window)->flags &= window_all_flags - window_state_iconified_bit;
+	((sl_window_mutable*)window)->flags |= window_state_normal_bit;
 }
 
 void sl_window_set_iconified (sl_window* restrict window) {
-	((sl_window_mutable*)window)->state &= all_window_states - window_state_normal_bit;
-	((sl_window_mutable*)window)->state |= window_state_iconified_bit;
+	((sl_window_mutable*)window)->flags &= window_all_flags - window_state_normal_bit;
+	((sl_window_mutable*)window)->flags |= window_state_iconified_bit;
 }
 
 void sl_window_set_fullscreen (sl_window* window, sl_display* display, bool fullscreen) {
 	if (fullscreen)
-		((sl_window_mutable*)window)->state |= window_state_fullscreen_bit;
+		((sl_window_mutable*)window)->flags |= window_state_fullscreen_bit;
 	else
-		((sl_window_mutable*)window)->state &= all_window_states - window_state_fullscreen_bit;
+		((sl_window_mutable*)window)->flags &= window_all_flags - window_state_fullscreen_bit;
 
 	window_state_change(window, display);
 }
 
 void sl_window_toggle_fullscreen (sl_window* window, sl_display* display) {
-	return sl_window_set_fullscreen(window, display, !(window->state & window_state_fullscreen_bit));
+	return sl_window_set_fullscreen(window, display, !(window->flags & window_state_fullscreen_bit));
 }
 
 void sl_window_set_horizontally_maximized (sl_window* window, sl_display* display, bool maximized) {
 	if (maximized)
-		((sl_window_mutable*)window)->state |= window_state_maximized_horz_bit;
+		((sl_window_mutable*)window)->flags |= window_state_maximized_horz_bit;
 	else
-		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_horz_bit;
+		((sl_window_mutable*)window)->flags &= window_all_flags - window_state_maximized_horz_bit;
 
 	window_state_change(window, display);
 }
 
 void sl_window_toggle_horizontally_maximized (sl_window* window, sl_display* display) {
-	return sl_window_set_horizontally_maximized(window, display, !(window->state & window_state_maximized_horz_bit));
+	return sl_window_set_horizontally_maximized(window, display, !(window->flags & window_state_maximized_horz_bit));
 }
 
 void sl_window_set_vertically_maximized (sl_window* window, sl_display* display, bool maximized) {
 	if (maximized)
-		((sl_window_mutable*)window)->state |= window_state_maximized_vert_bit;
+		((sl_window_mutable*)window)->flags |= window_state_maximized_vert_bit;
 	else
-		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_vert_bit;
+		((sl_window_mutable*)window)->flags &= window_all_flags - window_state_maximized_vert_bit;
 
 	window_state_change(window, display);
 }
 
 void sl_window_toggle_vertically_maximized (sl_window* window, sl_display* display) {
-	return sl_window_set_horizontally_maximized(window, display, !(window->state & window_state_maximized_vert_bit));
+	return sl_window_set_horizontally_maximized(window, display, !(window->flags & window_state_maximized_vert_bit));
 }
 
 void sl_window_set_maximized (sl_window* window, sl_display* display, bool maximized) {
 	if (maximized) {
-		((sl_window_mutable*)window)->state |= window_state_maximized_horz_bit;
-		((sl_window_mutable*)window)->state |= window_state_maximized_vert_bit;
+		((sl_window_mutable*)window)->flags |= window_state_maximized_horz_bit;
+		((sl_window_mutable*)window)->flags |= window_state_maximized_vert_bit;
 	} else {
-		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_horz_bit;
-		((sl_window_mutable*)window)->state &= all_window_states - window_state_maximized_vert_bit;
+		((sl_window_mutable*)window)->flags &= window_all_flags - window_state_maximized_horz_bit;
+		((sl_window_mutable*)window)->flags &= window_all_flags - window_state_maximized_vert_bit;
 	}
 
 	window_state_change(window, display);
 }
 
 void sl_window_toggle_maximized (sl_window* window, sl_display* display) {
-	return sl_window_set_maximized(window, display, !(window->state & (window_state_maximized_horz_bit | window_state_maximized_vert_bit)));
+	return sl_window_set_maximized(window, display, !(window->flags & (window_state_maximized_horz_bit | window_state_maximized_vert_bit)));
 }

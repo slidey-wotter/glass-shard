@@ -196,7 +196,7 @@ void sl_grab_keys (sl_display* restrict this) {
 }
 
 static void focus_window_impl (sl_display* restrict this, sl_window* restrict window, Time time) {
-	if (!window->hints.input) {
+	if (!(window->flags & window_hints_input_bit)) {
 		// the window must focus itself
 		return;
 	}
@@ -216,7 +216,7 @@ static void focus_window_impl (sl_display* restrict this, sl_window* restrict wi
 		XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
 	}
 
-	if (!window->have_protocols.take_focus) {
+	if (!(window->flags & window_protocols_take_focus_bit)) {
 		XSetInputFocus(this->x_display, window->x_window, RevertToPointerRoot, time);
 		return;
 	}
@@ -256,7 +256,7 @@ static void unfocus_window_impl (sl_display* restrict this, sl_window* restrict 
 static void raise_window_impl (sl_display* restrict this, sl_window* restrict window) { XRaiseWindow(this->x_display, window->x_window); }
 
 static void delete_window_impl (sl_display* this, sl_window* restrict window, Time time) {
-	if (!window->have_protocols.delete_window) {
+	if (!(window->flags & window_protocols_delete_window_bit)) {
 		XKillClient(this->x_display, window->x_window);
 		return;
 	}
@@ -514,7 +514,7 @@ static void send_new_dimensions_to_window (sl_display* restrict this, sl_window*
 }
 
 void sl_move_window (sl_display* restrict this, sl_window* restrict window, i16 x, i16 y) {
-	if (window->type & window_type_splash_bit) return;
+	if (window->flags & window_type_splash_bit) return;
 	if (window->dimensions.x == x && window->dimensions.y == y) return;
 
 	window->dimensions.x = x;
@@ -526,7 +526,7 @@ void sl_move_window (sl_display* restrict this, sl_window* restrict window, i16 
 }
 
 void sl_resize_window (sl_display* restrict this, sl_window* restrict window, u16 width, u16 height) {
-	if (window->type & window_type_splash_bit) return;
+	if (window->flags & window_type_splash_bit) return;
 
 	if (window->normal_hints.min_width != 0) {
 		if (window->normal_hints.max_width != 0) {
@@ -563,7 +563,7 @@ void sl_resize_window (sl_display* restrict this, sl_window* restrict window, u1
 }
 
 void sl_move_and_resize_window (sl_display* restrict this, sl_window* restrict window, sl_window_dimensions dimensions) {
-	if (window->type & window_type_splash_bit) return;
+	if (window->flags & window_type_splash_bit) return;
 	if (window->dimensions.x == dimensions.x && window->dimensions.y == dimensions.y && window->dimensions.width == dimensions.width && window->dimensions.height == dimensions.height)
 		return;
 
@@ -586,17 +586,17 @@ void sl_configure_window (sl_display* restrict this, sl_window* restrict window,
 }
 
 void sl_window_fullscreen_change_response (sl_display* restrict this, sl_window* restrict window) {
-	if ((window->state & window_state_fullscreen_bit) != 0)
+	if ((window->flags & window_state_fullscreen_bit) != 0)
 		sl_move_and_resize_window(this, window, this->dimensions);
 	else
 		sl_move_and_resize_window(this, window, window->saved_dimensions);
 }
 
 void sl_window_maximized_change_response (sl_display* restrict this, sl_window* restrict window) {
-	if ((window->state & window_state_fullscreen_bit) != 0) return;
+	if ((window->flags & window_state_fullscreen_bit) != 0) return;
 
-	if (window->state & window_state_maximized_horz_bit) {
-		if (window->state & window_state_maximized_vert_bit) return sl_move_and_resize_window(this, window, this->dimensions);
+	if (window->flags & window_state_maximized_horz_bit) {
+		if (window->flags & window_state_maximized_vert_bit) return sl_move_and_resize_window(this, window, this->dimensions);
 
 		return sl_move_and_resize_window(
 		this, window,
@@ -605,7 +605,7 @@ void sl_window_maximized_change_response (sl_display* restrict this, sl_window* 
 		);
 	}
 
-	if (window->state & window_state_maximized_vert_bit)
+	if (window->flags & window_state_maximized_vert_bit)
 		return sl_move_and_resize_window(
 		this, window,
 		(sl_window_dimensions
@@ -629,7 +629,7 @@ void sl_expand_raised_window_to_max (sl_display* restrict this) {
 
 	if (!window) return;
 
-	if (window->state & window_state_fullscreen_bit) return; // do nothing
+	if (window->flags & window_state_fullscreen_bit) return; // do nothing
 
 	window->saved_dimensions = this->dimensions;
 
@@ -641,7 +641,7 @@ void sl_close_raised_window (sl_display* restrict this, Time time) { return sl_d
 void sl_delete_window (sl_display* restrict this, size_t index, Time time) {
 	sl_window* window = (sl_window*)&this->window_stack.data[index].window;
 
-	if (window->started) delete_window_impl(this, window, time);
+	if (window->flags & (window_state_normal_bit | window_state_iconified_bit)) delete_window_impl(this, window, time);
 }
 
 void sl_delete_raised_window (sl_display* restrict this, Time time) {

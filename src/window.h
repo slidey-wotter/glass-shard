@@ -23,57 +23,56 @@
 #include "window-dimensions.h"
 #include "workspace-type.h"
 
-enum {
-	allowed_action_move_bit = 1 << 0,
-	allowed_action_resize_bit = 1 << 1,
-	allowed_action_minimize_bit = 1 << 2,
-	allowed_action_shade_bit = 1 << 3,
-	allowed_action_stick_bit = 1 << 4,
-	allowed_action_maximize_horz_bit = 1 << 5,
-	allowed_action_maximize_vert_bit = 1 << 6,
-	allowed_action_fullscreen_bit = 1 << 7,
-	allowed_action_change_desktop_bit = 1 << 8,
-	allowed_action_close_bit = 1 << 9,
-	allowed_action_above_bit = 1 << 10,
-	allowed_action_below_bit = 1 << 11,
-	all_allowed_actions = 0b111111111111
-};
-
-enum {
-	window_type_desktop_bit = 1 << 0,
-	window_type_dock_bit = 1 << 1,
-	window_type_toolbar_bit = 1 << 2,
-	window_type_menu_bit = 1 << 3,
-	window_type_utility_bit = 1 << 4,
-	window_type_splash_bit = 1 << 5,
-	window_type_dialog_bit = 1 << 6,
-	window_type_dropdown_menu_bit = 1 << 7,
-	window_type_popup_menu_bit = 1 << 8,
-	window_type_tooltip_bit = 1 << 9,
-	window_type_notification_bit = 1 << 10,
-	window_type_combo_bit = 1 << 11,
-	window_type_dnd_bit = 1 << 12,
-	window_type_normal_bit = 1 << 13
-};
-
-enum {
-	window_state_normal_bit = 1 << 0,
-	window_state_iconified_bit = 1 << 1,
-	window_state_modal_bit = 1 << 2,
-	window_state_sticky_bit = 1 << 3,
-	window_state_maximized_vert_bit = 1 << 4,
-	window_state_maximized_horz_bit = 1 << 5,
-	window_state_shaded_bit = 1 << 6,
-	window_state_skip_taskbar_bit = 1 << 7,
-	window_state_skip_pager_bit = 1 << 8,
-	window_state_hidden_bit = 1 << 9,
-	window_state_fullscreen_bit = 1 << 10,
-	window_state_above_bit = 1 << 11,
-	window_state_below_bit = 1 << 12,
-	window_state_demands_attention_bit = 1 << 13,
-	window_state_focused_bit = 1 << 14,
-	all_window_states = 0b111111111111111
-};
+#define window_started_bit                       0x0000000000000001
+#define window_hints_input_bit                   0x0000000000000002
+#define window_hints_urgent_bit                  0x0000000000000004
+#define window_protocols_take_focus_bit          0x0000000000000008
+#define window_protocols_delete_window_bit       0x0000000000000010
+#define window_type_desktop_bit                  0x0000000000000020
+#define window_type_dock_bit                     0x0000000000000040
+#define window_type_toolbar_bit                  0x0000000000000080
+#define window_type_menu_bit                     0x0000000000000100
+#define window_type_utility_bit                  0x0000000000000200
+#define window_type_splash_bit                   0x0000000000000400
+#define window_type_dialog_bit                   0x0000000000000800
+#define window_type_dropdown_menu_bit            0x0000000000001000
+#define window_type_popup_menu_bit               0x0000000000002000
+#define window_type_tooltip_bit                  0x0000000000004000
+#define window_type_notification_bit             0x0000000000008000
+#define window_type_combo_bit                    0x0000000000010000
+#define window_type_dnd_bit                      0x0000000000020000
+#define window_type_normal_bit                   0x0000000000040000
+#define window_all_types                         0x000000000007ffe0
+#define window_state_normal_bit                  0x0000000000080000
+#define window_state_iconified_bit               0x0000000000100000
+#define window_state_modal_bit                   0x0000000000200000
+#define window_state_sticky_bit                  0x0000000000400000
+#define window_state_maximized_vert_bit          0x0000000000800000
+#define window_state_maximized_horz_bit          0x0000000001000000
+#define window_state_shaded_bit                  0x0000000002000000
+#define window_state_skip_taskbar_bit            0x0000000004000000
+#define window_state_skip_pager_bit              0x0000000008000000
+#define window_state_hidden_bit                  0x0000000010000000
+#define window_state_fullscreen_bit              0x0000000020000000
+#define window_state_above_bit                   0x0000000040000000
+#define window_state_below_bit                   0x0000000080000000
+#define window_state_demands_attention_bit       0x0000000100000000
+#define window_state_focused_bit                 0x0000000200000000
+#define window_all_states                        0x00000003fff80000
+#define window_allowed_action_move_bit           0x0000000400000000
+#define window_allowed_action_resize_bit         0x0000000800000000
+#define window_allowed_action_minimize_bit       0x0000001000000000
+#define window_allowed_action_shade_bit          0x0000002000000000
+#define window_allowed_action_stick_bit          0x0000004000000000
+#define window_allowed_action_maximize_horz_bit  0x0000008000000000
+#define window_allowed_action_maximize_vert_bit  0x0000010000000000
+#define window_allowed_action_fullscreen_bit     0x0000020000000000
+#define window_allowed_action_change_desktop_bit 0x0000040000000000
+#define window_allowed_action_close_bit          0x0000080000000000
+#define window_allowed_action_above_bit          0x0000100000000000
+#define window_allowed_action_below_bit          0x0000200000000000
+#define window_all_allowed_actions               0x00003ffb00000000
+#define window_all_flags                         0x00003fffffffffff
 
 struct sl_sized_string {
 	char const* data;
@@ -82,7 +81,7 @@ struct sl_sized_string {
 
 typedef struct sl_window {
 	Window const x_window;
-	bool started;
+	u64 flags;
 	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
 
@@ -107,24 +106,10 @@ typedef struct sl_window {
 		u16 gravity;
 	} const normal_hints;
 
-	struct {
-		bool input;
-		bool urgent;
-	} const hints;
-
-	struct {
-		bool take_focus;
-		bool delete_window;
-	} const have_protocols;
-
 	struct sl_sized_string const net_wm_name;
 	struct sl_sized_string const net_wm_visible_name;
 	struct sl_sized_string const net_wm_icon_name;
 	struct sl_sized_string const net_wm_visible_icon_name;
-
-	u16 const type;
-	u16 const state;
-	u16 const allowed_actions;
 } sl_window;
 
 extern void sl_window_destroy (sl_window* window);

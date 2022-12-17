@@ -246,7 +246,7 @@ void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 	sl_window* const raised_window = sl_window_stack_get_raised_window((sl_window_stack*)&display->window_stack);
 	if (!raised_window) return;
 
-	if (raised_window->state & window_state_fullscreen_bit) return;
+	if (raised_window->flags & window_state_fullscreen_bit) return;
 
 	if (parse_mask(event->state) == (Button1MotionMask | Mod4Mask)) {
 		sl_move_window(
@@ -487,7 +487,7 @@ static void map_started_window (sl_display* display, size_t index) {
 static void map_unstarted_window (sl_display* display, size_t index) {
 	sl_window* window = (sl_window*)&display->window_stack.data[index].window;
 
-	window->started = true;
+	window->flags |= window_started_bit;
 
 	/*
 	{
@@ -558,10 +558,10 @@ void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	*/
 
 	cycle_all_windows_start {
-		if (!window->started)
-			return map_unstarted_window(display, i);
-		else
+		if (window->flags & window_started_bit)
 			return map_started_window(display, i);
+		else
+			return map_unstarted_window(display, i);
 	}
 	cycle_all_windows_end
 }

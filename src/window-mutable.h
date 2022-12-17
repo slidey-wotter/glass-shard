@@ -31,7 +31,7 @@ struct sl_sized_string_mutable {
 
 typedef struct sl_window_mutable {
 	Window x_window;
-	bool started;
+	u64 flags;
 	sl_window_dimensions dimensions;
 	sl_window_dimensions saved_dimensions;
 
@@ -56,22 +56,8 @@ typedef struct sl_window_mutable {
 		u16 gravity;
 	} normal_hints;
 
-	struct window_hints {
-		bool input;
-		bool urgent;
-	} hints;
-
-	struct window_protocols {
-		bool take_focus;
-		bool delete_window;
-	} have_protocols;
-
 	struct sl_sized_string_mutable net_wm_name;
 	struct sl_sized_string_mutable net_wm_visible_name;
 	struct sl_sized_string_mutable net_wm_icon_name;
 	struct sl_sized_string_mutable net_wm_visible_icon_name;
-
-	u16 type;
-	u16 state;
-	u16 allowed_actions;
 } sl_window_mutable;
