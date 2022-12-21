@@ -52,10 +52,10 @@ int xerror_handler (Display* display, XErrorEvent* error_event) {
 	warn_log_va("opcode: %i.%i", error_event->request_code, error_event->minor_code);
 	warn_log_va("resource id: %lu", error_event->resourceid);
 
-	assert_not_reached();
+	return 0;
 }
 
-int xio_error_handler (M_maybe_unused Display* display) { assert_not_reached(); }
+int xio_error_handler (M_maybe_unused Display* display) { return 0; }
 
 void exec_program (M_maybe_unused Display* display, char* const* args) {
 	pid_t pid = fork();
