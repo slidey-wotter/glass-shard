@@ -1414,6 +1414,9 @@ void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XFocusInEve
 #elif defined(D_focus_in_event_log_verbose)
 	x_focus_change_event_verbose(FocusIn);
 #endif
+
+	cycle_windows_for_current_workspace_start { return sl_set_window_as_focused(display, i); }
+	cycle_windows_for_current_workspace_end
 }
 
 void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XFocusOutEvent* event) {
@@ -1436,6 +1439,8 @@ void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XFocusOutE
 #elif defined(D_focus_out_event_log_verbose)
 	x_focus_change_event_verbose(FocusOut);
 #endif
+
+	sl_unset_x_window_as_focused(display, event->window);
 }
 
 #define invalid_key_press \

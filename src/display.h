@@ -209,6 +209,9 @@ extern void sl_raise_window (sl_display* restrict, size_t);
 extern void sl_focus_and_raise_window (sl_display* restrict, size_t, Time);
 extern void sl_focus_raised_window (sl_display* restrict, Time);
 
+extern void sl_set_window_as_focused (sl_display* restrict, size_t);
+extern void sl_unset_x_window_as_focused (sl_display* restrict, Window);
+
 extern void sl_move_window (sl_display* restrict, sl_window* restrict, i16 x, i16 y);
 extern void sl_resize_window (sl_display* restrict, sl_window* restrict, u16 width, u16 height);
 extern void sl_move_and_resize_window (sl_display* restrict, sl_window* restrict, sl_window_dimensions);

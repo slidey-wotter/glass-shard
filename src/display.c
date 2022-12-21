@@ -103,7 +103,7 @@ sl_display* sl_display_create (Display* restrict x_display) {
 		XSetWindowAttributes attributes;
 		attributes.cursor = display->cursor;
 		attributes.event_mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask | EnterWindowMask | LeaveWindowMask | StructureNotifyMask |
-		SubstructureNotifyMask | SubstructureRedirectMask | PropertyChangeMask;
+		SubstructureNotifyMask | SubstructureRedirectMask | FocusChangeMask | PropertyChangeMask;
 		XChangeWindowAttributes(display->x_display, display->root, CWEventMask | CWCursor, &attributes);
 	}
 
@@ -203,21 +203,6 @@ static void focus_window_impl (sl_display* restrict this, sl_window* restrict wi
 		return;
 	}
 
-	{
-		warn_log("todo: serial");
-		XClientMessageEvent event = (XClientMessageEvent) {
-		.type = ClientMessage,
-		.serial = 0,
-		.send_event = true,
-		.display = this->x_display,
-		.window = window->x_window,
-		.message_type = this->atoms[net_wm_state],
-		.format = 32,
-		.data = {.l = {M_net_wm_state_add, this->atoms[net_wm_state_focused], 0, 0, 0}}};
-
-		XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
-	}
-
 	if (!(window->flags & window_protocols_take_focus_bit)) {
 		XSetInputFocus(this->x_display, window->x_window, RevertToPointerRoot, time);
 		return;
@@ -240,26 +225,12 @@ static void focus_window_impl (sl_display* restrict this, sl_window* restrict wi
 	XSendEvent(this->x_display, window->x_window, false, 0, (XEvent*)&event);
 }
 
-static void unfocus_window_impl (sl_display* restrict this, sl_window* restrict window) {
-	warn_log("todo: serial");
-	XClientMessageEvent event = (XClientMessageEvent) {
-	.type = ClientMessage,
-	.serial = 0,
-	.send_event = true,
-	.display = this->x_display,
-	.window = window->x_window,
-	.message_type = this->atoms[net_wm_state],
-	.format = 32,
-	.data = {.l = {M_net_wm_state_remove, this->atoms[net_wm_state_focused], 0, 0, 0}}};
-
-	XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
-}
-
 static void raise_window_impl (sl_display* restrict this, sl_window* restrict window) { XRaiseWindow(this->x_display, window->x_window); }
 
 static void delete_window_impl (sl_display* this, sl_window* restrict window, Time time) {
 	if (!(window->flags & window_protocols_delete_window_bit)) {
 		XKillClient(this->x_display, window->x_window);
+
 		return;
 	}
 
@@ -388,7 +359,6 @@ void sl_next_workspace_with_raised_window (sl_display* restrict this) {
 	if (this->window_stack.workspace_vector.size == 1) return;
 
 	size_t index = this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace];
-	size_t focused_window_index = this->window_stack.focused_window_index;
 
 	sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&this->window_stack, index);
 
@@ -398,8 +368,6 @@ void sl_next_workspace_with_raised_window (sl_display* restrict this) {
 
 	sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&this->window_stack, index);
 
-	if (index == focused_window_index) sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
-
 	raise_window_impl(this, (sl_window*)&this->window_stack.data[index].window);
 }
 
@@ -407,7 +375,6 @@ void sl_previous_workspace_with_raised_window (sl_display* restrict this) {
 	if (this->window_stack.workspace_vector.size == 1) return;
 
 	size_t index = this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace];
-	size_t focused_window_index = this->window_stack.focused_window_index;
 
 	sl_window_stack_remove_window_from_its_workspace((sl_window_stack*)&this->window_stack, index);
 
@@ -417,8 +384,6 @@ void sl_previous_workspace_with_raised_window (sl_display* restrict this) {
 
 	sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&this->window_stack, index);
 
-	if (index == focused_window_index) sl_window_stack_set_raised_window_as_focused((sl_window_stack*)&this->window_stack);
-
 	raise_window_impl(this, (sl_window*)&this->window_stack.data[index].window);
 }
 
@@ -427,10 +392,6 @@ void sl_focus_window (sl_display* restrict this, size_t index, Time time) {
 	sl_window* focused_window = sl_window_stack_get_focused_window((sl_window_stack*)&this->window_stack);
 
 	if (focused_window == window) return;
-
-	if (focused_window) unfocus_window_impl(this, focused_window);
-
-	sl_window_stack_set_focused_window((sl_window_stack*)&this->window_stack, index);
 
 	focus_window_impl(this, window, time);
 }
@@ -455,6 +416,42 @@ void sl_focus_raised_window (sl_display* restrict this, Time time) {
 	sl_window* window = sl_window_stack_get_raised_window((sl_window_stack*)&this->window_stack);
 
 	if (window) return sl_focus_window(this, this->window_stack.workspace_vector.indexes[this->window_stack.current_workspace], time);
+}
+
+void sl_set_window_as_focused (sl_display* restrict this, size_t index) {
+	sl_window_stack_set_focused_window((sl_window_stack*)&this->window_stack, index);
+
+	sl_window* window = (sl_window*)&this->window_stack.data[index].window;
+
+	warn_log("todo: serial");
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = this->x_display,
+	.window = window->x_window,
+	.message_type = this->atoms[net_wm_state],
+	.format = 32,
+	.data = {.l = {M_net_wm_state_add, this->atoms[net_wm_state_focused], 0, 0, 0}}};
+
+	XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
+}
+
+void sl_unset_x_window_as_focused (sl_display* restrict this, Window x_window) {
+	sl_window_stack_set_focused_window_as_invalid((sl_window_stack*)&this->window_stack);
+
+	warn_log("todo: serial");
+	XClientMessageEvent event = (XClientMessageEvent) {
+	.type = ClientMessage,
+	.serial = 0,
+	.send_event = true,
+	.display = this->x_display,
+	.window = x_window,
+	.message_type = this->atoms[net_wm_state],
+	.format = 32,
+	.data = {.l = {M_net_wm_state_remove, this->atoms[net_wm_state_focused], 0, 0, 0}}};
+
+	XSendEvent(this->x_display, this->root, false, 0, (XEvent*)&event);
 }
 
 static void send_new_dimensions_to_window (sl_display* restrict this, sl_window* restrict window) {
