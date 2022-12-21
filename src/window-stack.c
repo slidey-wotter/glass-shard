@@ -286,7 +286,7 @@ static void window_stack_ensure_capacity_plus_one (sl_window_stack* restrict thi
 	window_stack_print();
 }
 
-void sl_window_stack_add_window (sl_window_stack* restrict this, sl_window* window) {
+sl_window* sl_window_stack_add_window (sl_window_stack* restrict this, sl_window* window) {
 	window_stack_ensure_capacity_plus_one(this);
 
 	((sl_window_stack_mutable*)this)->data[this->size] =
@@ -295,6 +295,8 @@ void sl_window_stack_add_window (sl_window_stack* restrict this, sl_window* wind
 	++((sl_window_stack_mutable*)this)->size;
 
 	window_stack_print();
+
+	return (sl_window*)&this->data[this->size - 1].window;
 }
 
 void sl_window_stack_remove_window (sl_window_stack* restrict this, size_t index) {

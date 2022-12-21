@@ -48,7 +48,7 @@ typedef struct sl_window_stack {
 
 void sl_window_stack_create (sl_window_stack* restrict, size_t size);
 void sl_window_stack_delete (sl_window_stack* restrict);
-void sl_window_stack_add_window (sl_window_stack* restrict, sl_window* window);
+sl_window* sl_window_stack_add_window (sl_window_stack* restrict, sl_window* window);
 void sl_window_stack_remove_window (sl_window_stack* restrict, size_t index);
 void sl_window_stack_add_window_to_current_workspace (sl_window_stack* restrict, size_t index);
 void sl_window_stack_remove_window_from_its_workspace (sl_window_stack* restrict, size_t index);
