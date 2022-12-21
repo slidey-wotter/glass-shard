@@ -306,7 +306,30 @@ void sl_create_notify (sl_display* display, XCreateWindowEvent* event) {
 	  application creates a window by calling XCreateWindow or XCreateSimpleWindow.
 	*/
 
-	return sl_window_stack_add_window((sl_window_stack*)&display->window_stack, &(sl_window) {.x_window = event->window});
+	XSelectInput(
+	event->display, event->window,
+	EnterWindowMask | LeaveWindowMask | StructureNotifyMask | SubstructureNotifyMask | SubstructureRedirectMask | FocusChangeMask | PropertyChangeMask
+	);
+
+	uint const modifiers[] = {0, LockMask, display->numlockmask, LockMask | display->numlockmask};
+	for (unsigned i = 0; i < 4; ++i) {
+		XGrabButton(
+		display->x_display, Button1, Mod4Mask | modifiers[i], event->window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+		GrabModeAsync, GrabModeAsync, None, None
+		);
+		XGrabButton(
+		display->x_display, Button1, Mod4Mask | ControlMask | modifiers[i], event->window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+		GrabModeAsync, GrabModeAsync, None, None
+		);
+	}
+
+	if (event->parent != display->root) return;
+
+	sl_window* const window = sl_window_stack_add_window((sl_window_stack*)&display->window_stack, &(sl_window) {.x_window = event->window});
+	XWindowAttributes attributes;
+	XGetWindowAttributes(event->display, event->window, &attributes);
+	window->dimensions = (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height};
+	window->saved_dimensions = window->dimensions;
 }
 
 void sl_destroy_notify (sl_display* display, XDestroyWindowEvent* event) {
