@@ -37,6 +37,275 @@
 #include "window-manager.h"
 #include "window.h"
 
+#if defined(D_event_log_quiet)
+#	define D_button_press_event_quiet
+#	define D_button_release_event_quiet
+#	define D_enter_notify_event_log_quiet
+#	define D_leave_notify_event_log_quiet
+#	define D_motion_notify_event_log_quiet
+#	define D_circulate_notify_event_log_quiet
+#	define D_configure_notify_event_log_quiet
+#	define D_create_notify_event_log_quiet
+#	define D_destroy_notify_event_log_quiet
+#	define D_gravity_notify_event_log_quiet
+#	define D_map_notify_event_log_quiet
+#	define D_reparent_notify_event_log_quiet
+#	define D_unmap_notify_event_log_quiet
+#	define D_circulate_request_event_log_quiet
+#	define D_configure_request_event_log_quiet
+#	define D_map_request_event_log_quiet
+#	define D_resize_request_event_log_quiet
+#	define D_property_notify_event_log_quiet
+#	define D_client_message_event_log_quiet
+#	define D_mapping_notify_event_log_quiet
+#	define D_selection_clear_event_log_quiet
+#	define D_selection_request_event_log_quiet
+#	define D_selection_notify_event_log_quiet
+#	define D_focus_in_event_log_quiet
+#	define D_focus_out_event_log_quiet
+#	define D_key_press_event_log_quiet
+#	define D_key_release_event_log_quiet
+#elif defined(D_event_log_verbose)
+#	define D_button_press_event_verbose
+#	define D_button_release_event_verbose
+#	define D_enter_notify_event_log_verbose
+#	define D_leave_notify_event_log_verbose
+#	define D_motion_notify_event_log_verbose
+#	define D_circulate_notify_event_log_verbose
+#	define D_configure_notify_event_log_verbose
+#	define D_create_notify_event_log_verbose
+#	define D_destroy_notify_event_log_verbose
+#	define D_gravity_notify_event_log_verbose
+#	define D_map_notify_event_log_verbose
+#	define D_reparent_notify_event_log_verbose
+#	define D_unmap_notify_event_log_verbose
+#	define D_circulate_request_event_log_verbose
+#	define D_configure_request_event_log_verbose
+#	define D_map_request_event_log_verbose
+#	define D_resize_request_event_log_verbose
+#	define D_property_notify_event_log_verbose
+#	define D_client_message_event_log_verbose
+#	define D_mapping_notify_event_log_verbose
+#	define D_selection_clear_event_log_verbose
+#	define D_selection_request_event_log_verbose
+#	define D_selection_notify_event_log_verbose
+#	define D_focus_in_event_log_verbose
+#	define D_focus_out_event_log_verbose
+#	define D_key_press_event_log_verbose
+#	define D_key_release_event_log_verbose
+#endif
+
+#define x_button_event_log_verbose(M_event) \
+	log("[%lu]: " #M_event, event->window); \
+	log("serial %lu", event->serial); \
+	log_bool("send event %s", event->send_event); \
+	log("display %p", event->display); \
+	log("root %lu", event->root); \
+	log("subwindow %lu", event->subwindow); \
+	log("time %lu", event->time); \
+	log("x %i, y %i", event->x, event->y); \
+	log("x_root %i, y_root %i", event->x_root, event->y_root); \
+	log("state 0x%x", event->state); \
+	log("button 0x%x", event->button); \
+	log_bool("same screen %s", event->same_screen)
+
+#define x_crossing_event_log_verbose(M_event) \
+	log("[%lu]: " #M_event, event->window); \
+	log("serial %lu", event->serial); \
+	log_bool("send event %s", event->send_event); \
+	log("display %p", event->display); \
+	log("root %lu", event->root); \
+	log("subwindow %lu", event->subwindow); \
+	log("time %lu", event->time); \
+	log("x %i, y %i", event->x, event->y); \
+	log("x_root %i, y_root %i", event->x_root, event->y_root); \
+	log_parsed_3("mode %s", event->mode, NotifyNormal, NotifyGrab, NotifyUngrab); \
+	log_parsed_5("detail %s", event->detail, NotifyAncestor, NotifyVirtual, NotifyInferior, NotifyNonlinear, NotifyNonlinearVirtual); \
+	log_bool("same screen %s", event->same_screen); \
+	log_bool("focus %s", event->focus); \
+	log("state 0x%x", event->state)
+
+#define x_focus_change_event_verbose(M_event) \
+	log("[%lu]: " #M_event, event->window); \
+	log("serial %lu", event->serial); \
+	log_bool("send event %s", event->send_event); \
+	log("display %p", event->display); \
+	log_parsed_4("mode %s", event->mode, NotifyNormal, NotifyWhileGrabbed, NotifyGrab, NotifyUngrab); \
+	log_parsed_8( \
+	"detail %s", event->mode, NotifyAncestor, NotifyVirtual, NotifyInferior, NotifyNonlinear, NotifyNonlinearVirtual, NotifyPointer, \
+	NotifyPointerRoot, NotifyDetailNone \
+	)
+
+#define x_key_event_verbose(M_event) \
+	log("[%lu]: " #M_event, event->window); \
+	log("serial %lu", event->serial); \
+	log_bool("send event %s", event->send_event); \
+	log("display %p", event->display); \
+	log("root %lu", event->root); \
+	log("subwindow %lu", event->subwindow); \
+	log("time %lu", event->time); \
+	log("x %i, y %i", event->x, event->y); \
+	log("x_root %i, y_root %i", event->x_root, event->y_root); \
+	log("state %x", event->state); \
+	log("keycode %x", event->keycode); \
+	log_bool("same_screen %s", event->same_screen)
+
+#define print_window_attributes() \
+	warn_log("window attributes"); \
+	warn_log_va("x %i, y %i", attributes.x, attributes.y); \
+	warn_log_va("width %i, height %i", attributes.width, attributes.height); \
+	warn_log_va("border_width %i", attributes.border_width); \
+	warn_log_va("depth %i", attributes.depth); \
+	warn_log_va("visual %p", attributes.visual); \
+	warn_log_va("root %lu", attributes.root); \
+	warn_log_va("class %s", attributes.class == InputOnly ? "InputOnly" : attributes.class == InputOutput ? "InputOutput" : ""); \
+\
+	warn_log_va( \
+	"bit_gravity %s", \
+	attributes.bit_gravity == ForgetGravity    ? "ForgetGravity" : \
+	attributes.bit_gravity == NorthWestGravity ? "NorthWestGravity" : \
+	attributes.bit_gravity == NorthGravity     ? "NorthGravity" : \
+	attributes.bit_gravity == NorthEastGravity ? "NorthEastGravity" : \
+	attributes.bit_gravity == WestGravity      ? "WestGravity" : \
+	attributes.bit_gravity == EastGravity      ? "EastGravity" : \
+	attributes.bit_gravity == SouthWestGravity ? "SouthWestGravity" : \
+	attributes.bit_gravity == SouthGravity     ? "SouthGravity" : \
+	attributes.bit_gravity == SouthEastGravity ? "SouthEastGravity" : \
+	attributes.bit_gravity == StaticGravity    ? "StaticGravity" : \
+	                                             "" \
+	); \
+\
+	warn_log_va( \
+	"win_gravity %s", \
+	attributes.win_gravity == UnmapGravity     ? "UnmapGravity" : \
+	attributes.win_gravity == NorthWestGravity ? "NorthWestGravity" : \
+	attributes.win_gravity == NorthGravity     ? "NorthGravity" : \
+	attributes.win_gravity == NorthEastGravity ? "NorthEastGravity" : \
+	attributes.win_gravity == WestGravity      ? "WestGravity" : \
+	attributes.win_gravity == EastGravity      ? "EastGravity" : \
+	attributes.win_gravity == SouthWestGravity ? "SouthWestGravity" : \
+	attributes.win_gravity == SouthGravity     ? "SouthGravity" : \
+	attributes.win_gravity == SouthEastGravity ? "SouthEastGravity" : \
+	attributes.win_gravity == StaticGravity    ? "StaticGravity" : \
+	attributes.win_gravity == CenterGravity    ? "CenterGravity" : \
+	                                             "" \
+	); \
+\
+	warn_log_va( \
+	"backing_store %s", \
+	attributes.backing_store == NotUseful  ? "NotUseful" : \
+	attributes.backing_store == WhenMapped ? "WhenMapped" : \
+	attributes.backing_store == Always     ? "Always" : \
+	                                         "" \
+	); \
+\
+	warn_log_va("backing_planes %lu", attributes.backing_planes); \
+	warn_log_va("backing_pixel %lu", attributes.backing_pixel); \
+	warn_log_va("save_under %s", attributes.save_under ? "true" : "false"); \
+	warn_log_va("colormap %lu", attributes.colormap); \
+	warn_log_va("map_installed %s", attributes.map_installed ? "true" : "false"); \
+\
+	warn_log_va( \
+	"map_state %s", \
+	attributes.map_state == IsUnmapped   ? "IsUnmapped" : \
+	attributes.map_state == IsUnviewable ? "IsUnviewable" : \
+	attributes.map_state == IsViewable   ? "IsViewable" : \
+	                                       "" \
+	); \
+\
+	char buffer[512] = ""; \
+\
+	if (attributes.all_event_masks & KeyPressMask) strcat(buffer, "KeyPressMask "); \
+	if (attributes.all_event_masks & KeyReleaseMask) strcat(buffer, "KeyReleaseMask "); \
+	if (attributes.all_event_masks & ButtonPressMask) strcat(buffer, "ButtonPressMask "); \
+	if (attributes.all_event_masks & ButtonReleaseMask) strcat(buffer, "ButtonReleaseMask "); \
+	if (attributes.all_event_masks & EnterWindowMask) strcat(buffer, "EnterWindowMask "); \
+	if (attributes.all_event_masks & LeaveWindowMask) strcat(buffer, "LeaveWindowMask "); \
+	if (attributes.all_event_masks & PointerMotionMask) strcat(buffer, "PointerMotionMask "); \
+	if (attributes.all_event_masks & PointerMotionHintMask) strcat(buffer, "PointerMotionHintMask "); \
+	if (attributes.all_event_masks & Button1MotionMask) strcat(buffer, "Button1MotionMask "); \
+	if (attributes.all_event_masks & Button2MotionMask) strcat(buffer, "Button2MotionMask "); \
+	if (attributes.all_event_masks & Button3MotionMask) strcat(buffer, "Button3MotionMask "); \
+	if (attributes.all_event_masks & Button4MotionMask) strcat(buffer, "Button4MotionMask "); \
+	if (attributes.all_event_masks & Button5MotionMask) strcat(buffer, "Button5MotionMask "); \
+	if (attributes.all_event_masks & ButtonMotionMask) strcat(buffer, "ButtonMotionMask "); \
+	if (attributes.all_event_masks & KeymapStateMask) strcat(buffer, "KeymapStateMask "); \
+	if (attributes.all_event_masks & ExposureMask) strcat(buffer, "ExposureMask "); \
+	if (attributes.all_event_masks & VisibilityChangeMask) strcat(buffer, "VisibilityChangeMask "); \
+	if (attributes.all_event_masks & StructureNotifyMask) strcat(buffer, "StructureNotifyMask "); \
+	if (attributes.all_event_masks & ResizeRedirectMask) strcat(buffer, "ResizeRedirectMask "); \
+	if (attributes.all_event_masks & SubstructureNotifyMask) strcat(buffer, "SubstructureNotifyMask "); \
+	if (attributes.all_event_masks & SubstructureRedirectMask) strcat(buffer, "SubstructureRedirectMask "); \
+	if (attributes.all_event_masks & FocusChangeMask) strcat(buffer, "FocusChangeMask "); \
+	if (attributes.all_event_masks & PropertyChangeMask) strcat(buffer, "PropertyChangeMask "); \
+	if (attributes.all_event_masks & ColormapChangeMask) strcat(buffer, "ColormapChangeMask "); \
+	if (attributes.all_event_masks & OwnerGrabButtonMask) strcat(buffer, "OwnerGrabButtonMask "); \
+\
+	warn_log_va("all_event_masks %s", buffer); \
+\
+	buffer[0] = '\0'; \
+\
+	if (attributes.your_event_mask & KeyPressMask) strcat(buffer, "KeyPressMask "); \
+	if (attributes.your_event_mask & KeyReleaseMask) strcat(buffer, "KeyReleaseMask "); \
+	if (attributes.your_event_mask & ButtonPressMask) strcat(buffer, "ButtonPressMask "); \
+	if (attributes.your_event_mask & ButtonReleaseMask) strcat(buffer, "ButtonReleaseMask "); \
+	if (attributes.your_event_mask & EnterWindowMask) strcat(buffer, "EnterWindowMask "); \
+	if (attributes.your_event_mask & LeaveWindowMask) strcat(buffer, "LeaveWindowMask "); \
+	if (attributes.your_event_mask & PointerMotionMask) strcat(buffer, "PointerMotionMask "); \
+	if (attributes.your_event_mask & PointerMotionHintMask) strcat(buffer, "PointerMotionHintMask "); \
+	if (attributes.your_event_mask & Button1MotionMask) strcat(buffer, "Button1MotionMask "); \
+	if (attributes.your_event_mask & Button2MotionMask) strcat(buffer, "Button2MotionMask "); \
+	if (attributes.your_event_mask & Button3MotionMask) strcat(buffer, "Button3MotionMask "); \
+	if (attributes.your_event_mask & Button4MotionMask) strcat(buffer, "Button4MotionMask "); \
+	if (attributes.your_event_mask & Button5MotionMask) strcat(buffer, "Button5MotionMask "); \
+	if (attributes.your_event_mask & ButtonMotionMask) strcat(buffer, "ButtonMotionMask "); \
+	if (attributes.your_event_mask & KeymapStateMask) strcat(buffer, "KeymapStateMask "); \
+	if (attributes.your_event_mask & ExposureMask) strcat(buffer, "ExposureMask "); \
+	if (attributes.your_event_mask & VisibilityChangeMask) strcat(buffer, "VisibilityChangeMask "); \
+	if (attributes.your_event_mask & StructureNotifyMask) strcat(buffer, "StructureNotifyMask "); \
+	if (attributes.your_event_mask & ResizeRedirectMask) strcat(buffer, "ResizeRedirectMask "); \
+	if (attributes.your_event_mask & SubstructureNotifyMask) strcat(buffer, "SubstructureNotifyMask "); \
+	if (attributes.your_event_mask & SubstructureRedirectMask) strcat(buffer, "SubstructureRedirectMask "); \
+	if (attributes.your_event_mask & FocusChangeMask) strcat(buffer, "FocusChangeMask "); \
+	if (attributes.your_event_mask & PropertyChangeMask) strcat(buffer, "PropertyChangeMask "); \
+	if (attributes.your_event_mask & ColormapChangeMask) strcat(buffer, "ColormapChangeMask "); \
+	if (attributes.your_event_mask & OwnerGrabButtonMask) strcat(buffer, "OwnerGrabButtonMask "); \
+\
+	warn_log_va("your_event_mask %s", buffer); \
+\
+	buffer[0] = '\0'; \
+\
+	if (attributes.do_not_propagate_mask & KeyPressMask) strcat(buffer, "KeyPressMask "); \
+	if (attributes.do_not_propagate_mask & KeyReleaseMask) strcat(buffer, "KeyReleaseMask "); \
+	if (attributes.do_not_propagate_mask & ButtonPressMask) strcat(buffer, "ButtonPressMask "); \
+	if (attributes.do_not_propagate_mask & ButtonReleaseMask) strcat(buffer, "ButtonReleaseMask "); \
+	if (attributes.do_not_propagate_mask & EnterWindowMask) strcat(buffer, "EnterWindowMask "); \
+	if (attributes.do_not_propagate_mask & LeaveWindowMask) strcat(buffer, "LeaveWindowMask "); \
+	if (attributes.do_not_propagate_mask & PointerMotionMask) strcat(buffer, "PointerMotionMask "); \
+	if (attributes.do_not_propagate_mask & PointerMotionHintMask) strcat(buffer, "PointerMotionHintMask "); \
+	if (attributes.do_not_propagate_mask & Button1MotionMask) strcat(buffer, "Button1MotionMask "); \
+	if (attributes.do_not_propagate_mask & Button2MotionMask) strcat(buffer, "Button2MotionMask "); \
+	if (attributes.do_not_propagate_mask & Button3MotionMask) strcat(buffer, "Button3MotionMask "); \
+	if (attributes.do_not_propagate_mask & Button4MotionMask) strcat(buffer, "Button4MotionMask "); \
+	if (attributes.do_not_propagate_mask & Button5MotionMask) strcat(buffer, "Button5MotionMask "); \
+	if (attributes.do_not_propagate_mask & ButtonMotionMask) strcat(buffer, "ButtonMotionMask "); \
+	if (attributes.do_not_propagate_mask & KeymapStateMask) strcat(buffer, "KeymapStateMask "); \
+	if (attributes.do_not_propagate_mask & ExposureMask) strcat(buffer, "ExposureMask "); \
+	if (attributes.do_not_propagate_mask & VisibilityChangeMask) strcat(buffer, "VisibilityChangeMask "); \
+	if (attributes.do_not_propagate_mask & StructureNotifyMask) strcat(buffer, "StructureNotifyMask "); \
+	if (attributes.do_not_propagate_mask & ResizeRedirectMask) strcat(buffer, "ResizeRedirectMask "); \
+	if (attributes.do_not_propagate_mask & SubstructureNotifyMask) strcat(buffer, "SubstructureNotifyMask "); \
+	if (attributes.do_not_propagate_mask & SubstructureRedirectMask) strcat(buffer, "SubstructureRedirectMask "); \
+	if (attributes.do_not_propagate_mask & FocusChangeMask) strcat(buffer, "FocusChangeMask "); \
+	if (attributes.do_not_propagate_mask & PropertyChangeMask) strcat(buffer, "PropertyChangeMask "); \
+	if (attributes.do_not_propagate_mask & ColormapChangeMask) strcat(buffer, "ColormapChangeMask "); \
+	if (attributes.do_not_propagate_mask & OwnerGrabButtonMask) strcat(buffer, "OwnerGrabButtonMask "); \
+\
+	warn_log_va("do_not_propagate_mask %s", buffer); \
+\
+	warn_log_va("override_redirect %s", attributes.override_redirect ? "true" : "false"); \
+	warn_log_va("screen %p", attributes.screen)
+
 #define parse_mask(m)      (m & ~(display->numlockmask | LockMask))
 #define parse_mask_long(m) (m & ~(display->numlockmask | LockMask) & (ShiftMask | ControlMask | Mod1Mask | Mod2Mask | Mod3Mask | Mod4Mask | Mod5Mask))
 
@@ -109,6 +378,11 @@ void sl_button_press (sl_display* display, XButtonPressedEvent* event) {
 	  all buttons released. Clients can modify the active grab by calling XUngrabPointer
 	  and XChangeActivePointerGrab.
 	*/
+#if defined(D_button_press_event_quiet)
+	log("[%lu]: ButtonPress", event->window);
+#elif defined(D_button_press_event_verbose)
+	x_button_event_log_verbose(ButtonPress);
+#endif
 
 	return button_press_or_release(display, event);
 }
@@ -144,6 +418,12 @@ void sl_button_release (sl_display* display, XButtonReleasedEvent* event) {
 	  and XChangeActivePointerGrab.
 	*/
 
+#if defined(D_button_release_event_quiet)
+	log("[%lu]: ButtonRelease", event->window);
+#elif defined(D_button_release_event_verbose)
+	x_button_event_log_verbose(ButtonRelease);
+#endif
+
 	return button_press_or_release(display, event);
 }
 
@@ -166,6 +446,12 @@ void sl_enter_notify (sl_display* display, XEnterWindowEvent* event) {
 	  identified by XEnterWindowEvent or XLeaveWindowEvent structures whose mode
 	  member is set to NotifyUngrab (see XGrabPointer).
 	*/
+
+#if defined(D_enter_notify_event_log_quiet)
+	log("[%lu]: EnterNotify", event->window);
+#elif defined(D_enter_notify_event_log_verbose)
+	x_crossing_event_log_verbose(EnterNotify);
+#endif
 
 	if (event->mode != NotifyNormal) return;
 
@@ -196,6 +482,12 @@ void sl_leave_notify (M_maybe_unused sl_display* display, M_maybe_unused XLeaveW
 	  identified by XEnterWindowEvent or XLeaveWindowEvent structures whose mode
 	  member is set to NotifyUngrab (see XGrabPointer).
 	*/
+
+#if defined(D_leave_notify_event_log_quiet)
+	log("[%lu]: LeaveNotify", event->window);
+#elif defined(D_leave_notify_event_log_verbose)
+	x_crossing_event_log_verbose(LeaveNotify);
+#endif
 }
 
 void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
@@ -228,6 +520,23 @@ void sl_motion_notify (sl_display* display, XPointerMovedEvent* event) {
 	  all buttons released. Clients can modify the active grab by calling XUngrabPointer
 	  and XChangeActivePointerGrab.
 	*/
+
+#if defined(D_motion_notify_event_log_quiet) || defined(D_motion_notify_event_log_verbose)
+	log("[%lu]: MotionNotify", event->window);
+#endif
+#if defined(D_motion_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("root %lu", event->root);
+	log("subwindow %lu", event->subwindow);
+	log("time %lu", event->time);
+	log("x %i, y %i", event->x, event->y);
+	log("x_root %i, y_root %i", event->x_root, event->y_root);
+	log("state 0x%x", event->state);
+	log("is_hint %c", event->is_hint);
+	log_bool("same_screen %s", event->same_screen);
+#endif
 
 	sl_window* const raised_window = sl_window_stack_get_raised_window((sl_window_stack*)&display->window_stack);
 	if (!raised_window) return;
@@ -266,6 +575,17 @@ void sl_circulate_notify (M_maybe_unused sl_display* display, M_maybe_unused XCi
 	  client application calling XCirculateSubwindows, XCirculateSubwindowsUp, or
 	  XCirculateSubwindowsDown.
 	*/
+
+#if defined(D_circulate_notify_event_log_quiet) || defined(D_circulate_notify_event_log_verbose)
+	log("[%lu]: CirculateNotify", event->window);
+#endif
+#if defined(D_circulate_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+	log_parsed_2("place %s", event->place, PlaceOnTop, PlaceOnBottom);
+#endif
 }
 
 void sl_configure_notify (M_maybe_unused sl_display* display, M_maybe_unused XConfigureEvent* event) {
@@ -293,6 +613,21 @@ void sl_configure_notify (M_maybe_unused sl_display* display, M_maybe_unused XCo
 
 	  • A window's border width is changed by calling XSetWindowBorderWidth.
 	*/
+
+#if defined(D_configure_notify_event_log_quiet) || defined(D_configure_notify_event_log_verbose)
+	log("[%lu]: ConfigureNotify", event->window);
+#endif
+#if defined(D_configure_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+	log("x %i, y %i", event->x, event->y);
+	log("width %i, height %i", event->width, event->height);
+	log("border_width %i", event->border_width);
+	log("above %lu", event->above);
+	log_bool("override_redirect %s", event->override_redirect);
+#endif
 }
 
 void sl_create_notify (sl_display* display, XCreateWindowEvent* event) {
@@ -305,6 +640,20 @@ void sl_create_notify (sl_display* display, XCreateWindowEvent* event) {
 	  about creation of windows. The X server generates this event whenever a client
 	  application creates a window by calling XCreateWindow or XCreateSimpleWindow.
 	*/
+
+#if defined(D_create_notify_event_log_quiet) || defined(D_create_notify_event_log_verbose)
+	log("[%lu]: CreateNotify", event->window);
+#endif
+#if defined(D_create_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("parent %lu", event->parent);
+	log("x %i, y %i", event->x, event->y);
+	log("width %i, height %i", event->width, event->height);
+	log("border_width %i", event->border_width);
+	log_bool("override_redirect %s", event->override_redirect);
+#endif
 
 	XSelectInput(
 	event->display, event->window,
@@ -343,6 +692,16 @@ void sl_destroy_notify (sl_display* display, XDestroyWindowEvent* event) {
 	  application destroys a window by calling XDestroyWindow or XDestroySubwindows.
 	*/
 
+#if defined(D_destroy_notify_event_log_quiet) || defined(D_destroy_notify_event_log_verbose)
+	log("[%lu]: DestroyNotify", event->window);
+#endif
+#if defined(D_destroy_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+#endif
+
 	cycle_all_windows_start { return sl_window_stack_remove_window((sl_window_stack*)&display->window_stack, i); }
 	cycle_all_windows_end
 }
@@ -359,6 +718,17 @@ void sl_gravity_notify (M_maybe_unused sl_display* display, M_maybe_unused XGrav
 	  as a result of resizing its parent by calling XConfigureWindow, XMoveResizeWindow,
 	  or XResizeWindow.
 	*/
+
+#if defined(D_gravity_notify_event_log_quiet) || defined(D_gravity_notify_event_log_verbose)
+	log("[%lu]: GravityNotify", event->window);
+#endif
+#if defined(D_gravity_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+	log("x %i, y %i", event->x, event->y);
+#endif
 }
 
 void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XMapEvent* event) {
@@ -373,6 +743,17 @@ void sl_map_notify (M_maybe_unused sl_display* display, M_maybe_unused XMapEvent
 	  XMapWindow, XMapRaised, XMapSubwindows, XReparentWindow, or as a result of save-
 	  set processing.
 	*/
+
+#if defined(D_map_notify_event_log_quiet) || defined(D_map_notify_event_log_verbose)
+	log("[%lu]: MapNotify", event->window);
+#endif
+#if defined(D_map_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+	log_bool("override_redirect %s", event->override_redirect);
+#endif
 }
 
 void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XReparentEvent* event) {
@@ -385,6 +766,19 @@ void sl_reparent_notify (M_maybe_unused sl_display* display, M_maybe_unused XRep
 	  changing a window's parent. The X server generates this event whenever a client
 	  application calls XReparentWindow and the window is actually reparented.
 	*/
+
+#if defined(D_reparent_notify_event_log_quiet) || defined(D_reparent_notify_event_log_verbose)
+	log("[%lu]: ReparentNotify", event->window);
+#endif
+#if defined(D_reparent_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+	log("parent %lu", event->parent);
+	log("x %i, y %i", event->x, event->y);
+	log_bool("override_redirect %s", event->override_redirect);
+#endif
 }
 
 void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
@@ -397,6 +791,17 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	  which windows are unmapped. The X server generates this event type whenever a
 	  client application changes the window's state from mapped to unmapped.
 	*/
+
+#if defined(D_unmap_notify_event_log_quiet) || defined(D_unmap_notify_event_log_verbose)
+	log("[%lu]: UnmapNotify", event->window);
+#endif
+#if defined(D_unmap_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("event %lu", event->event);
+	log_bool("from_configure %s", event->from_configure);
+#endif
 
 	/*
 	  For compatibility with obsolete clients, window managers should
@@ -438,6 +843,17 @@ void sl_circulate_request (sl_display* display, XCirculateRequestEvent* event) {
 	  XCirculateSubwindowsDown.
 	*/
 
+#if defined(D_circulate_request_event_log_quiet) || defined(D_circulate_request_event_log_verbose)
+	log("[%lu]: CirculateRequest", event->window);
+#endif
+#if defined(D_circulate_request_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("parent %lu", event->parent);
+	log_parsed_2("place %s", event->place, PlaceOnTop, PlaceOnBottom);
+#endif
+
 	cycle_windows_for_current_workspace_start {
 		if (event->place == PlaceOnTop) return sl_focus_and_raise_window(display, i, CurrentTime);
 
@@ -464,6 +880,30 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	  XRestackWindows, or XSetWindowBorderWidth.
 	*/
 
+#if defined(D_configure_request_event_log_quiet) || defined(D_configure_request_event_log_verbose)
+	log("[%lu]: ConfigureRequest", event->window);
+#endif
+#if defined(D_configure_request_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("parent %lu", event->parent);
+	log("x %i, y %i", event->x, event->y);
+	log("width %i, height %i", event->width, event->height);
+	log("border_width %i", event->border_width);
+	log("above %lu", event->above);
+	log_parsed_5("detail %s", event->detail, Above, Below, TopIf, BottomIf, Opposite);
+
+	char buffer[256] = "";
+	if (event->value_mask & CWX) strcat(buffer, "X ");
+	if (event->value_mask & CWY) strcat(buffer, "Y ");
+	if (event->value_mask & CWWidth) strcat(buffer, "Width ");
+	if (event->value_mask & CWHeight) strcat(buffer, "Height ");
+	if (event->value_mask & CWBorderWidth) strcat(buffer, "BorderWidth ");
+	if (event->value_mask & CWSibling) strcat(buffer, "Sibling ");
+	if (event->value_mask & CWStackMode) strcat(buffer, "StackMode ");
+	log("value_mask %s", buffer);
+#endif
 
 	XWindowAttributes attributes;
 	XGetWindowAttributes(event->display, event->window, &attributes);
@@ -552,6 +992,15 @@ void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	  calling XMapWindow, XMapRaised, or XMapSubwindows.
 	*/
 
+#if defined(D_map_request_event_log_quiet) || defined(D_map_request_event_log_verbose)
+	log("[%lu]: MapRequest", event->window);
+#endif
+#if defined(D_map_request_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("parent %lu", event->parent);
+#endif
 
 	XWindowAttributes attributes;
 	XGetWindowAttributes(event->display, event->window, &attributes);
@@ -614,12 +1063,22 @@ void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XResi
 	  this event whenever some other client attempts to change the size of the specified
 	  window by calling XConfigureWindow, XResizeWindow, or XMoveResizeWindow.
 	*/
+
+#if defined(D_resize_request_event_log_quiet) || defined(D_resize_request_event_log_verbose)
+	log("[%lu]: ResizeRequest", event->window);
+#endif
+#if defined(D_resize_request_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("width %i, height %i", event->width, event->height);
+#endif
 }
 
 #ifdef D_property_log
 #	define property_log(M_property, M_code) \
 		if (event->atom == M_property) { \
-			warn_log(#M_property); \
+			log_message(#M_property); \
 			M_code; \
 		}
 #else
@@ -667,10 +1126,17 @@ void sl_property_notify (sl_display* display, XPropertyEvent* event) {
 	  XDeleteProperty or, if the delete argument is True, XGetWindowProperty.
 	*/
 
-	if (event->state == PropertyDelete) {
-		warn_log("PropertyDelete");
-		return;
-	}
+#if defined(D_property_notify_event_log_quiet) || defined(D_property_notify_event_log_verbose)
+	log("[%lu]: PropertyNotify", event->window);
+#endif
+#if defined(D_property_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("atom %lu", event->atom);
+	log("time %lu", event->time);
+	log_parsed_2("state %s", event->state, PropertyNewValue, PropertyDelete);
+#endif
 
 	cycle_windows_for_current_workspace_start {
 		// start of icccm:
@@ -728,52 +1194,86 @@ void sl_client_message (M_maybe_unused sl_display* display, M_maybe_unused XClie
 	  XSendEvent.
 	*/
 
+#if defined(D_client_message_event_log_quiet) || defined(D_client_message_event_log_verbose)
+	log("[%lu]: ClientMessage", event->window);
+#endif
+#if defined(D_client_message_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("message_type %lu", event->message_type);
+	log("format %i", event->format);
+	if (event->format == 8) {
+		log_message("data.b");
+		for (size_t i = 0; i < 20; ++i)
+			log("[%lu] %u", i, event->data.b[i]);
+	} else if (event->format == 16) {
+		log_message("data.s");
+		for (size_t i = 0; i < 10; ++i)
+			log("[%lu] %u", i, event->data.s[i]);
+	} else if (event->format == 32) {
+		log_message("data.l");
+		for (size_t i = 0; i < 5; ++i)
+			log("[%lu] %lu", i, event->data.l[i]);
+	}
+#endif
+
 	cycle_all_mapped_windows_start {
 		// note: assuming event->format == 32
 
 		if (event->message_type == display->atoms[wm_change_state]) {
+			log_message("change state");
 			// note: assuming event.data.l[0] == IconicState
 			return sl_window_set_iconified(window);
 		}
 
 		if (event->message_type == display->atoms[net_wm_state]) {
+			log_message("net wm state");
 			if ((ulong)event->data.l[1] == display->atoms[net_wm_state_fullscreen]) {
-				warn_log_va("[%lu] data.l[1] -> fullscreen", window->x_window);
+				log("[%lu] data.l[1] -> fullscreen", window->x_window);
 
 				if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
-					warn_log_va("[%lu] unset fullscreen", window->x_window);
+					log("[%lu] unset fullscreen", window->x_window);
 					sl_window_set_fullscreen(window, display, false);
 					sl_window_fullscreen_change_response(display, window);
 				} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
-					warn_log_va("[%lu] set fullscreen", window->x_window);
+					log("[%lu] set fullscreen", window->x_window);
 					sl_window_set_fullscreen(window, display, true);
 					sl_window_fullscreen_change_response(display, window);
 				} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
-					warn_log_va("[%lu] toggle fullscreen", window->x_window);
+					log("[%lu] toggle fullscreen", window->x_window);
 					sl_window_toggle_fullscreen(window, display);
 					sl_window_fullscreen_change_response(display, window);
 				}
 			}
 
 			if ((ulong)event->data.l[2] == display->atoms[net_wm_state_fullscreen]) {
-				warn_log_va("[%lu] data.l[2] -> fullscreen", window->x_window);
+				log("[%lu] data.l[2] -> fullscreen", window->x_window);
 
 				if ((ulong)event->data.l[0] == M_net_wm_state_remove) {
-					warn_log_va("[%lu] unset fullscreen", window->x_window);
+					log("[%lu] unset fullscreen", window->x_window);
 					sl_window_set_fullscreen(window, display, false);
 					sl_window_fullscreen_change_response(display, window);
 				} else if ((ulong)event->data.l[0] == M_net_wm_state_add) {
-					warn_log_va("[%lu] set fullscreen", window->x_window);
+					log("[%lu] set fullscreen", window->x_window);
 					sl_window_set_fullscreen(window, display, true);
 					sl_window_fullscreen_change_response(display, window);
 				} else if ((ulong)event->data.l[0] == M_net_wm_state_toggle) {
-					warn_log_va("[%lu] toggle fullscreen", window->x_window);
+					log("[%lu] toggle fullscreen", window->x_window);
 					sl_window_toggle_fullscreen(window, display);
 					sl_window_fullscreen_change_response(display, window);
 				}
 			}
+
+			if ((ulong)event->data.l[1] == display->atoms[net_wm_state_focused]) {
+				log("[%lu] data.l[1] -> focused", window->x_window);
+			}
+
+			if ((ulong)event->data.l[2] == display->atoms[net_wm_state_focused]) {
+				log("[%lu] data.l[2] -> focused", window->x_window);
+			}
 		}
-		
+
 		return;
 	}
 	cycle_all_mapped_windows_end
@@ -794,6 +1294,18 @@ void sl_mapping_notify (sl_display* display, XMappingEvent* event) {
 	  • XSetPointerMapping to set the pointer mapping
 	*/
 
+#if defined(D_mapping_notify_event_log_quiet) || defined(D_mapping_notify_event_log_verbose)
+	log("[%lu]: MappingNotify", event->window);
+#endif
+#if defined(D_mapping_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log_parsed_3("request %s", event->request, MappingModifier, MappingKeyboard, MappingPointer);
+	log("first_keycode %i", event->first_keycode);
+	log("count %i", event->count);
+#endif
+
 	XRefreshKeyboardMapping(event);
 	if (event->request == MappingKeyboard) sl_grab_keys(display);
 }
@@ -808,6 +1320,17 @@ void sl_selection_clear (M_maybe_unused sl_display* display, M_maybe_unused XSel
 	  a selection. The X server generates this event type when another client asserts
 	  ownership of the selection by calling XSetSelectionOwner.
 	*/
+
+#if defined(D_selection_clear_event_log_quiet) || defined(D_selection_clear_event_log_verbose)
+	log("[%lu]: SelectionClear", event->window);
+#endif
+#if defined(D_selection_clear_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("selection %lu", event->selection);
+	log("time %lu", event->time);
+#endif
 }
 
 void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XSelectionRequestEvent* event) {
@@ -820,6 +1343,21 @@ void sl_selection_request (M_maybe_unused sl_display* display, M_maybe_unused XS
 	  server generates this event whenever a client requests a selection conversion by
 	  calling XConvertSelection for the owned selection.
 	*/
+
+#if defined(D_selection_request_event_log_quiet) || defined(D_selection_request_event_log_verbose)
+	log("[%lu]: SelectionRequest [%lu]", event->requestor, event->owner);
+#endif
+#if defined(D_selection_request_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("owner %lu", event->owner);
+	log("requestor %lu", event->requestor);
+	log("selection %lu", event->selection);
+	log("target %lu", event->target);
+	log("property %lu", event->property);
+	log("time %lu", event->time);
+#endif
 }
 
 void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XSelectionEvent* event) {
@@ -840,6 +1378,20 @@ void sl_selection_notify (M_maybe_unused sl_display* display, M_maybe_unused XSe
 	  the requestor window, and then send a SelectionNotify giving that actual property
 	  name.
 	*/
+
+#if defined(D_selection_notify_event_log_quiet) || defined(D_selection_notify_event_log_verbose)
+	log("[%lu]: SelectionNotify", event->requestor);
+#endif
+#if defined(D_selection_notify_event_log_verbose)
+	log("serial %lu", event->serial);
+	log_bool("send event %s", event->send_event);
+	log("display %p", event->display);
+	log("requestor %lu", event->requestor);
+	log("selection %lu", event->selection);
+	log("target %lu", event->target);
+	log("property %lu", event->property);
+	log("time %lu", event->time);
+#endif
 }
 
 void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XFocusInEvent* event) {
@@ -856,6 +1408,12 @@ void sl_focus_in (M_maybe_unused sl_display* display, M_maybe_unused XFocusInEve
 	  the window that receives keyboard input. Clients may need to know when the input
 	  focus changes to control highlighting of areas on the screen.
 	*/
+
+#if defined(D_focus_in_event_log_quiet)
+	log("[%lu]: FocusIn", event->window);
+#elif defined(D_focus_in_event_log_verbose)
+	x_focus_change_event_verbose(FocusIn);
+#endif
 }
 
 void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XFocusOutEvent* event) {
@@ -872,6 +1430,12 @@ void sl_focus_out (M_maybe_unused sl_display* display, M_maybe_unused XFocusOutE
 	  the window that receives keyboard input. Clients may need to know when the input
 	  focus changes to control highlighting of areas on the screen.
 	*/
+
+#if defined(D_focus_out_event_log_quiet)
+	log("[%lu]: FocusOut", event->window);
+#elif defined(D_focus_out_event_log_verbose)
+	x_focus_change_event_verbose(FocusOut);
+#endif
 }
 
 #define invalid_key_press \
@@ -906,6 +1470,12 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 	  The generation of the logical changes lags the physical changes if device event
 	  processing is frozen.
 	*/
+
+#if defined(D_key_press_event_log_quiet)
+	log("[%lu]: KeyPress", event->window);
+#elif defined(D_key_press_event_log_verbose)
+	x_key_event_verbose(KeyPress);
+#endif
 
 	if (parse_mask_long(event->state) == 0) { // {k}
 		switch (XLookupKeysym(event, 0)) {
@@ -1218,4 +1788,10 @@ void sl_key_release (M_maybe_unused sl_display* display, M_maybe_unused XKeyRele
 	  The generation of the logical changes lags the physical changes if device event
 	  processing is frozen.
 	*/
+
+#if defined(D_key_release_event_log_quiet)
+	log("[%lu]: KeyRelease", event->window);
+#elif defined(D_key_release_event_log_verbose)
+	x_key_event_verbose(KeyRelease);
+#endif
 }
