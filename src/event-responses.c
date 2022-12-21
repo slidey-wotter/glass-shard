@@ -1519,8 +1519,8 @@ void sl_key_press (sl_display* display, XKeyPressedEvent* event) {
 			}
 			char filename[128];
 			sprintf(filename, "/home/slidey/media/screenshot/%s:%lu.webp", strftime_string, timespec.tv_nsec);
-			warn_log("this only works for display 0");
-			char* const args[] = {"ffmpeg",    "-n", "-v",        "0", "-f",       "x11grab", "-i",     ":0",
+			char* display_number = getenv("DISPLAY");
+			char* const args[] = {"ffmpeg",    "-n", "-v",        "0", "-f",       "x11grab", "-i",     display_number,
 			                      "-frames:v", "1",  "-lossless", "1", "-pix_fmt", "bgra",    filename, 0};
 			return exec_program(display->x_display, args);
 		}
