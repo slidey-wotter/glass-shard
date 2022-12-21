@@ -24,6 +24,27 @@
 
 #	define perror(M_message)
 
+#	define log_message(M_message) \
+		{}
+#	define log(M_message, ...) \
+		{}
+#	define log_bool(M_message, M_value) \
+		{}
+#	define log_parsed_2(M_message, M_value, M_parse0, M_parse1) \
+		{}
+#	define log_parsed_3(M_message, M_value, M_parse0, M_parse1, M_parse2) \
+		{}
+#	define log_parsed_4(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3) \
+		{}
+#	define log_parsed_5(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4) \
+		{}
+#	define log_parsed_6(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4, M_parse5) \
+		{}
+#	define log_parsed_7(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4, M_parse5, M_parse6) \
+		{}
+#	define log_parsed_8(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4, M_parse5, M_parse6, M_parse7) \
+		{}
+
 #	define warn_log(M_message) \
 		{}
 #	define warn_log_va(M_message, ...) \
@@ -44,7 +65,10 @@
 
 extern FILE* output_file ();
 
-#	ifdef D_release
+#	if defined(D_release)
+
+#		define log_message(M_message) fprintf(output_file(), " M_message "\n, __LINE__)
+#		define log(M_message, ...)    fprintf(output_file(), " M_message "\n, __LINE__, __VA_ARGS__)
 
 #		define warn_log(M_message)         fprintf(output_file(), "[warning] " M_message "\n")
 #		define warn_log_va(M_message, ...) fprintf(output_file(), "[warning] " M_message "\n", __VA_ARGS__)
@@ -66,9 +90,10 @@ extern FILE* output_file ();
 			}
 #		define assert_not_reached() exit(-1)
 
-#	endif
+#	elif defined(D_debug)
 
-#	ifdef D_debug
+#		define log_message(M_message) fprintf(output_file(), __FILE__ ":%u: " M_message "\n", __LINE__)
+#		define log(M_message, ...)    fprintf(output_file(), __FILE__ ":%u: " M_message "\n", __LINE__, __VA_ARGS__)
 
 #		define warn_log(M_message)         fprintf(output_file(), "[warning] " __FILE__ ":%u: " M_message "\n", __LINE__)
 #		define warn_log_va(M_message, ...) fprintf(output_file(), "[warning] " __FILE__ ":%u: " M_message "\n", __LINE__, __VA_ARGS__)
@@ -98,5 +123,67 @@ extern FILE* output_file ();
 			}
 
 #	endif
+
+#	define log_bool(M_message, M_value) log(M_message, M_value ? "true" : "false")
+
+#	define log_parsed_2(M_message, M_value, M_parse0, M_parse1) \
+		log(M_message, M_value == M_parse0 ? #M_parse0 : M_value == M_parse1 ? #M_parse1 : "undefined")
+#	define log_parsed_3(M_message, M_value, M_parse0, M_parse1, M_parse2) \
+		log(M_message, M_value == M_parse0 ? #M_parse0 : M_value == M_parse1 ? #M_parse1 : M_value == M_parse2 ? #M_parse2 : "undefined")
+#	define log_parsed_4(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3) \
+		log( \
+		M_message, \
+		M_value == M_parse0 ? #M_parse0 : \
+		M_value == M_parse1 ? #M_parse1 : \
+		M_value == M_parse2 ? #M_parse2 : \
+		M_value == M_parse3 ? #M_parse3 : \
+		                      "undefined" \
+		)
+#	define log_parsed_5(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4) \
+		log( \
+		M_message, \
+		M_value == M_parse0 ? #M_parse0 : \
+		M_value == M_parse1 ? #M_parse1 : \
+		M_value == M_parse2 ? #M_parse2 : \
+		M_value == M_parse3 ? #M_parse3 : \
+		M_value == M_parse4 ? #M_parse4 : \
+		                      "undefined" \
+		)
+#	define log_parsed_6(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4, M_parse5) \
+		log( \
+		M_message, \
+		M_value == M_parse0 ? #M_parse0 : \
+		M_value == M_parse1 ? #M_parse1 : \
+		M_value == M_parse2 ? #M_parse2 : \
+		M_value == M_parse3 ? #M_parse3 : \
+		M_value == M_parse4 ? #M_parse4 : \
+		M_value == M_parse5 ? #M_parse5 : \
+		                      "undefined" \
+		)
+#	define log_parsed_7(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4, M_parse5, M_parse6) \
+		log( \
+		M_message, \
+		M_value == M_parse0 ? #M_parse0 : \
+		M_value == M_parse1 ? #M_parse1 : \
+		M_value == M_parse2 ? #M_parse2 : \
+		M_value == M_parse3 ? #M_parse3 : \
+		M_value == M_parse4 ? #M_parse4 : \
+		M_value == M_parse5 ? #M_parse5 : \
+		M_value == M_parse6 ? #M_parse6 : \
+		                      "undefined" \
+		)
+#	define log_parsed_8(M_message, M_value, M_parse0, M_parse1, M_parse2, M_parse3, M_parse4, M_parse5, M_parse6, M_parse7) \
+		log( \
+		M_message, \
+		M_value == M_parse0 ? #M_parse0 : \
+		M_value == M_parse1 ? #M_parse1 : \
+		M_value == M_parse2 ? #M_parse2 : \
+		M_value == M_parse3 ? #M_parse3 : \
+		M_value == M_parse4 ? #M_parse4 : \
+		M_value == M_parse5 ? #M_parse5 : \
+		M_value == M_parse6 ? #M_parse6 : \
+		M_value == M_parse7 ? #M_parse7 : \
+		                      "undefined" \
+		)
 
 #endif
