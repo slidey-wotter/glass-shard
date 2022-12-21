@@ -538,71 +538,6 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	return;
 }
 
-static void map_started_window (sl_display* display, size_t index) {
-	sl_window* window = (sl_window*)&display->window_stack.data[index].window;
-	XMapWindow(display->x_display, window->x_window);
-	sl_window_set_normal(window);
-}
-
-static void map_unstarted_window (sl_display* display, size_t index) {
-	sl_window* window = (sl_window*)&display->window_stack.data[index].window;
-
-	window->flags |= window_started_bit;
-
-	/*
-	{
-	  // shimeji support
-
-	  XClassHint* hint = XAllocClassHint();
-	  if (hint) {
-	    XGetClassHint(display->x_display, event->xmaprequest.window, hint);
-	    if (strcmp(hint->res_class, "com-group_finity-mascot-Main") == 0) {
-	      sl_vector_push(display->unmanaged_windows, &(sl_window) {.x_window = event->xmaprequest.window});
-	      XMapWindow(display->x_display, event->xmaprequest.window);
-	      XFree(hint);
-	      return;
-	    }
-	    XFree(hint);
-	  }
-	}
-	*/
-
-	XMapWindow(display->x_display, window->x_window);
-
-	sl_window_set_all_properties(window, display);
-
-	{
-		XWindowAttributes attributes;
-
-		XGetWindowAttributes(display->x_display, window->x_window, &attributes);
-		sl_move_and_resize_window(
-		display, window, (sl_window_dimensions) {.x = attributes.x, .y = attributes.y, .width = attributes.width, .height = attributes.height}
-		);
-		window->saved_dimensions = window->dimensions;
-	}
-
-	XSelectInput(
-	display->x_display, window->x_window,
-	EnterWindowMask | LeaveWindowMask | FocusChangeMask | PropertyChangeMask | ResizeRedirectMask | StructureNotifyMask
-	);
-
-	uint const modifiers[] = {0, LockMask, display->numlockmask, LockMask | display->numlockmask};
-	for (unsigned i = 0; i < 4; ++i) {
-		XGrabButton(
-		display->x_display, Button1, Mod4Mask | modifiers[i], window->x_window, false, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-		GrabModeAsync, GrabModeAsync, None, None
-		);
-		XGrabButton(
-		display->x_display, Button1, Mod4Mask | ControlMask | modifiers[i], window->x_window, false, ButtonPressMask | PointerMotionMask, GrabModeAsync,
-		GrabModeAsync, None, None
-		);
-	}
-
-	sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&display->window_stack, index);
-
-	sl_focus_and_raise_window(display, index, CurrentTime);
-}
-
 void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	/*
 	  Xlib - C Language X Interface: Chapter 10. Events: Structure Control Events:
@@ -617,13 +552,55 @@ void sl_map_request (sl_display* display, XMapRequestEvent* event) {
 	  calling XMapWindow, XMapRaised, or XMapSubwindows.
 	*/
 
-	cycle_all_windows_start {
-		if (window->flags & window_started_bit)
-			return map_started_window(display, i);
 
-		return map_unstarted_window(display, i);
+	XWindowAttributes attributes;
+	XGetWindowAttributes(event->display, event->window, &attributes);
+
+	/*
+	  To control window placement or to add decoration, a window manager often needs
+	  to intercept (redirect) any map or configure request. Pop-up windows, however,
+	  often need to be mapped without a window manager getting in the way. To control
+	  whether an InputOutput or InputOnly window is to ignore these structure control
+	  facilities, use the override-redirect flag.
+
+	  The override-redirect flag specifies whether map and configure requests on this
+	  window should override a SubstructureRedirectMask on the parent. You can set
+	  the override-redirect flag to True or False (default). Window managers use this
+	  information to avoid tampering with pop-up windows (see also chapter 14).
+	*/
+
+	// note: this is unecessary as well
+	if (attributes.override_redirect) {
+		XMapWindow(event->display, event->window);
+		return;
+	}
+
+	cycle_all_windows_start {
+		if (!(window->flags & window_started_bit)) {
+			window->flags |= window_started_bit;
+			sl_set_window_name(window, display);
+			sl_set_window_icon_name(window, display);
+			sl_set_window_normal_hints(window, display);
+			sl_set_window_hints(window, display);
+			sl_set_window_class(window, display);
+			sl_set_window_transient_for(window, display);
+			sl_set_window_protocols(window, display);
+			sl_set_window_colormap_windows(window, display);
+			sl_set_window_client_machine(window, display);
+		} else {
+			sl_window_set_normal(window);
+		}
+
+		XMapWindow(display->x_display, window->x_window);
+		sl_window_stack_add_window_to_current_workspace((sl_window_stack*)&display->window_stack, i);
+		sl_focus_raised_window(display, CurrentTime);
+
+		return;
 	}
 	cycle_all_windows_end
+
+	XMapWindow(event->display, event->window);
+	return;
 }
 
 void sl_resize_request (M_maybe_unused sl_display* display, M_maybe_unused XResizeRequestEvent* event) {
