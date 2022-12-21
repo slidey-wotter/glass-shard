@@ -206,7 +206,6 @@ extern void sl_focus_raised_window (sl_display* restrict, Time);
 extern void sl_move_window (sl_display* restrict, sl_window* restrict, i16 x, i16 y);
 extern void sl_resize_window (sl_display* restrict, sl_window* restrict, u16 width, u16 height);
 extern void sl_move_and_resize_window (sl_display* restrict, sl_window* restrict, sl_window_dimensions);
-extern void sl_configure_window (sl_display* restrict, sl_window* restrict, uint value_mask, XWindowChanges window_changes);
 extern void sl_window_fullscreen_change_response (sl_display* restrict, sl_window* restrict);
 extern void sl_window_maximized_change_response (sl_display* restrict, sl_window* restrict);
 

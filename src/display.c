@@ -578,15 +578,6 @@ void sl_move_and_resize_window (sl_display* restrict this, sl_window* restrict w
 	send_new_dimensions_to_window(this, window);
 }
 
-void sl_configure_window (sl_display* restrict this, sl_window* restrict window, uint value_mask, XWindowChanges window_changes) {
-	if (value_mask & CWX) window->dimensions.x = window_changes.x;
-	if (value_mask & CWY) window->dimensions.y = window_changes.y;
-	if (value_mask & CWWidth) window->dimensions.width = window_changes.width;
-	if (value_mask & CWHeight) window->dimensions.height = window_changes.height;
-
-	if (value_mask) XConfigureWindow(this->x_display, window->x_window, value_mask, &window_changes);
-}
-
 void sl_window_fullscreen_change_response (sl_display* restrict this, sl_window* restrict window) {
 	if ((window->flags & window_state_fullscreen_bit) != 0)
 		sl_move_and_resize_window(this, window, this->dimensions);

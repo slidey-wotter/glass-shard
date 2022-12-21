@@ -464,19 +464,78 @@ void sl_configure_request (sl_display* display, XConfigureRequestEvent* event) {
 	  XRestackWindows, or XSetWindowBorderWidth.
 	*/
 
+
+	XWindowAttributes attributes;
+	XGetWindowAttributes(event->display, event->window, &attributes);
+
+	/*
+	  To control window placement or to add decoration, a window manager often needs
+	  to intercept (redirect) any map or configure request. Pop-up windows, however,
+	  often need to be mapped without a window manager getting in the way. To control
+	  whether an InputOutput or InputOnly window is to ignore these structure control
+	  facilities, use the override-redirect flag.
+
+	  The override-redirect flag specifies whether map and configure requests on this
+	  window should override a SubstructureRedirectMask on the parent. You can set
+	  the override-redirect flag to True or False (default). Window managers use this
+	  information to avoid tampering with pop-up windows (see also chapter 14).
+	*/
+
+	// note: this is unecessary (for now), since we do not change the parameters
+	if (attributes.override_redirect) {
+		XConfigureWindow(
+		event->display, event->window, event->value_mask,
+		&(XWindowChanges) {
+		.x = event->x,
+		.y = event->y,
+		.width = event->width,
+		.height = event->height,
+		.border_width = event->border_width,
+		.sibling = event->above,
+		.stack_mode = event->detail}
+		);
+		return;
+	}
+
 	cycle_all_windows_start {
 		if (event->value_mask & (CWX | CWY | CWWidth | CWHeight)) {
-			sl_configure_window(
-			display, window, event->value_mask & (CWX | CWY | CWWidth | CWHeight),
-			(XWindowChanges) {.x = event->x, .y = event->y, .width = event->width, .height = event->height}
-			);
+			if (event->value_mask & CWX) window->dimensions.x = event->x;
+			if (event->value_mask & CWY) window->dimensions.y = event->y;
+			if (event->value_mask & CWWidth) window->dimensions.width = event->width;
+			if (event->value_mask & CWHeight) window->dimensions.height = event->height;
 
 			window->saved_dimensions = window->dimensions;
 		}
 
+		XConfigureWindow(
+		event->display, event->window, event->value_mask,
+		&(XWindowChanges) {
+		.x = event->x,
+		.y = event->y,
+		.width = event->width,
+		.height = event->height,
+		.border_width = event->border_width,
+		.sibling = event->above,
+		.stack_mode = event->detail}
+		);
+
 		return;
 	}
 	cycle_all_windows_end
+
+	XConfigureWindow(
+	event->display, event->window, event->value_mask,
+	&(XWindowChanges) {
+	.x = event->x,
+	.y = event->y,
+	.width = event->width,
+	.height = event->height,
+	.border_width = event->border_width,
+	.sibling = event->above,
+	.stack_mode = event->detail}
+	);
+
+	return;
 }
 
 static void map_started_window (sl_display* display, size_t index) {
