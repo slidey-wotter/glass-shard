@@ -587,6 +587,10 @@ void sl_set_window_protocols (sl_window* window, sl_display* display) {
 			((sl_window_mutable*)window)->flags |= window_protocols_delete_window_bit;
 			continue;
 		}
+
+		if (protocols[i] == display->atoms[net_wm_ping]) warn_log("net wm ping");
+		if (protocols[i] == display->atoms[net_wm_sync_request]) warn_log("net wm sync request");
+		if (protocols[i] == display->atoms[net_wm_fullscreen_monitors]) warn_log("net wm fullscreen monitors");
 	}
 
 	XFree(protocols);
