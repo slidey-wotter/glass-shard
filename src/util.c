@@ -44,14 +44,14 @@ void signal_handler (int signal_number) {
 
 int xerror_handler (Display* display, XErrorEvent* error_event) {
 	char error_text[4096];
+
 	XGetErrorText(display, error_event->error_code, error_text, 4096);
-	warn_log_va(
-	"XError (%i): %s\n"
-	"serial: %li\n"
-	"opcode: %i.%i\n"
-	"resource id: %lu\n",
-	error_event->error_code, error_text, error_event->serial, error_event->request_code, error_event->minor_code, error_event->resourceid
-	);
+
+	warn_log_va("XError (%i): %s", error_event->error_code, error_text);
+	warn_log_va("serial: %li", error_event->serial);
+	warn_log_va("opcode: %i.%i", error_event->request_code, error_event->minor_code);
+	warn_log_va("resource id: %lu", error_event->resourceid);
+
 	assert_not_reached();
 }
 
