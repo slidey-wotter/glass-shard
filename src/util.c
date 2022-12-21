@@ -64,9 +64,6 @@ void exec_program (M_maybe_unused Display* display, char* const* args) {
 		assert_not_reached();
 	}
 	if (pid == 0) {
-		// fclose(stdin);
-		// fclose(stderr);
-		// fclose(stdout);
 		if (setsid() == -1) {
 			perror("setsid");
 			assert_not_reached();
