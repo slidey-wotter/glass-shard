@@ -68,28 +68,15 @@
 #define cycle_all_windows_end }
 
 static void button_press_or_release (sl_display* display, XButtonEvent* event) {
-	if (event->window == display->root) {
-		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask))
-			sl_focus_raised_window(display, event->time);
+	if (!(parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask))) return;
 
-		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
-			display->mouse.x = event->x_root;
-			display->mouse.y = event->y_root;
+	display->mouse.y = event->y_root;
+	display->mouse.x = event->x_root;
 
-			return;
-		}
-	}
-
-	cycle_windows_for_current_workspace_start {
-		if (parse_mask(event->state) == 0 || parse_mask(event->state) == (Mod4Mask) || parse_mask(event->state) == (Mod4Mask | ControlMask))
-			sl_focus_and_raise_window(display, i, event->time);
-
-		if (parse_mask(event->state) == Mod4Mask || parse_mask(event->state) == (Mod4Mask | ControlMask)) {
-			display->mouse.x = event->x_root;
-			display->mouse.y = event->y_root;
-		}
-	}
+	cycle_windows_for_current_workspace_start { return sl_focus_and_raise_window(display, i, event->time); }
 	cycle_windows_for_current_workspace_end
+
+	return sl_focus_raised_window(display, event->time);
 }
 
 void sl_button_press (sl_display* display, XButtonPressedEvent* event) {
