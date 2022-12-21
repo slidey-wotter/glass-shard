@@ -399,14 +399,14 @@ void sl_unmap_notify (sl_display* display, XUnmapEvent* event) {
 	*/
 
 	/*
-	  note:
-
 	  For compatibility with obsolete clients, window managers should
 	  trigger the transition to the Withdrawn state on the real UnmapNotify
 	  rather than waiting for the synthetic one. They should also trigger
 	  the transition if they receive a synthetic UnmapNotify on a window
 	  for which they have not yet received a real UnmapNotify.
 	*/
+
+	// note: we are not doing this
 
 	cycle_all_mapped_windows_start {
 		if (event->send_event) {

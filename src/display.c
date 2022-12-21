@@ -64,6 +64,8 @@ static void set_net_supported (sl_display* restrict display) {
 	  made to the hints (without being renamed).
 	*/
 
+	// todo: actually support the atoms
+
 	XChangeProperty(
 	display->x_display, display->root, display->atoms[net_supported], XA_ATOM, 32, PropModeReplace, (uchar*)(display->atoms + net_supported),
 	atoms_size - net_supported
