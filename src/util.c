@@ -37,7 +37,7 @@ void signal_handler (int signal_number) {
 		}
 		if (WIFEXITED(status)) {
 			int ret = WEXITSTATUS(status);
-			if (ret != 0) warn_log_va("Warning: child process returned %i\n", ret);
+			if (ret != 0) warn_log_va("child process returned nonzero status %i\n", ret);
 		}
 	}
 }
