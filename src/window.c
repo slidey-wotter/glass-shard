@@ -699,9 +699,16 @@ window_set_net_utf8_string_property (sl_window* window, sl_display* display, siz
 	&actual_format, &items_size, &bytes_after, &prop
 	);
 
-	sized_string->size = items_size;
 	if (sized_string->data) free(sized_string->data);
-	sized_string->data = malloc(sized_string->size);
+
+	sized_string->size = items_size;
+	if (sized_string->size == 0) {
+		sized_string->data = NULL;
+		XFree(prop);
+		return;
+	}
+
+	sized_string->data = malloc(sizeof(uchar) * sized_string->size);
 	memcpy(sized_string->data, prop, sized_string->size);
 
 	XFree(prop);
